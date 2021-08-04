@@ -1,0 +1,10 @@
+train:
+  epochs: 500
+  batch_size: 4
+  patch_counts: [128, 64]
+arch:
+  input_size: [128, 128]
+  downscale_factor: 2
+  inner_weight: 0.5
+preprocess:
+  stride: [32, 32]

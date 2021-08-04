@@ -12,15 +12,13 @@
 module load cuda10.1/toolkit/10.1.243
 module load Anaconda3
 conda activate retina-gan
-CUDA_VISIBLE_DEVICES=0
 
-npz="./train_data/stare_mini_crop/image_data.npz"
-save="./save/stare_mini"
+name="stare_mini"
+
+npz="./train_data/${name}_crop/image_data.npz"
+save="./out/save/${name}"
+EPOCHS=500
 
 python -u train.py \
     --npz_file "${npz}" \
-    --savedir "${save}" \
-    --input_dim 128 \
-    --batch_size 4 \
-    --epochs 5 \
-    --inner_weight 0.5
+    --savedir "${save}"

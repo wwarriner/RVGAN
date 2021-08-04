@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Dict, List
 
 import keras.backend as K
+import yaml
 
 import src.data
 from src.dataloader import (
@@ -208,12 +209,9 @@ def train(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs", type=int, default=100)
-    parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument(
-        "--npz_file", type=str, default="DRIVE", help="path/to/npz/file",
+        "--npz_file", type=str, help="path/to/npz/file",
     )
-    parser.add_argument("--input_dim", type=int, default=128)
     parser.add_argument(
         "--savedir",
         type=str,
@@ -228,84 +226,58 @@ if __name__ == "__main__":
         default="no",
         choices=["yes", "no"],
     )
-    parser.add_argument("--inner_weight", type=float, default=0.5)
     args = parser.parse_args()
 
-    Path(args.savedir).mkdir(parents=True, exist_ok=True)
+    with open("config.yaml") as f:
+        config = yaml.safe_load(f)
+    input_file = PurePath(args.npz_file)
+    output_folder = PurePath(args.savedir)
+    Path(output_folder).mkdir(parents=True, exist_ok=True)
 
     K.clear_session()
     gc.collect()
-    dataset = load_real_data(args.npz_file)
+    dataset = load_real_data(input_file)
     print("Loaded", dataset[0].shape, dataset[1].shape)
 
     # define input shape based on the loaded dataset
-    in_size = args.input_dim
-    image_shape_coarse = (in_size // 2, in_size // 2, 3)
-    mask_shape_coarse = (in_size // 2, in_size // 2, 1)
-    label_shape_coarse = (in_size // 2, in_size // 2, 1)
+    arch_factory = src.model.ArchFactory(
+        input_size=config["arch"]["input_size"],
+        downscale_factor=config["arch"]["downscale_factor"],
+    )
 
-    image_shape_fine = (in_size, in_size, 3)
-    mask_shape_fine = (in_size, in_size, 1)
-    label_shape_fine = (in_size, in_size, 1)
-
-    image_shape_xglobal = (in_size // 2, in_size // 2, 128)
-    ndf = 64
-    ncf = 128
-    nff = 128
-
-    d_model1 = discriminator_ae(image_shape_fine, label_shape_fine, ndf, name="D1")
+    d_model1 = arch_factory.build_discriminator(scale_type="fine", name="D1")
     d1_file = src.data.ModelFile(
-        name="discriminator_1", folder=args.savedir, arch=d_model1
+        name="discriminator_1", folder=output_folder, arch=d_model1
     )
 
-    d_model2 = discriminator_ae(image_shape_coarse, label_shape_coarse, ndf, name="D2")
+    d_model2 = arch_factory.build_discriminator(scale_type="coarse", name="D2")
     d2_file = src.data.ModelFile(
-        name="discriminator_2", folder=args.savedir, arch=d_model2
+        name="discriminator_2", folder=output_folder, arch=d_model2
     )
 
-    g_model_fine = fine_generator(
-        x_coarse_shape=image_shape_xglobal,
-        input_shape=image_shape_fine,
-        mask_shape=mask_shape_fine,
-        nff=nff,
-        n_blocks=3,
-    )
+    g_model_fine = arch_factory.build_generator(scale_type="fine")
     g_fine_file = src.data.ModelFile(
-        name="global_model", folder=args.savedir, arch=g_model_fine
+        name="global_model", folder=output_folder, arch=g_model_fine
     )
 
-    g_model_coarse = coarse_generator(
-        img_shape=image_shape_coarse,
-        mask_shape=mask_shape_coarse,
-        n_downsampling=2,
-        n_blocks=9,
-        ncf=ncf,
-        n_channels=1,
-    )
+    g_model_coarse = arch_factory.build_generator(scale_type="coarse")
     g_coarse_file = src.data.ModelFile(
-        name="local_model", folder=args.savedir, arch=g_model_coarse
+        name="local_model", folder=output_folder, arch=g_model_coarse
     )
 
-    rvgan_model = RVgan(
-        g_model_fine,
-        g_model_coarse,
-        d_model1,
-        d_model2,
-        image_shape_fine,
-        image_shape_coarse,
-        image_shape_xglobal,
-        mask_shape_fine,
-        mask_shape_coarse,
-        label_shape_fine,
-        label_shape_coarse,
-        args.inner_weight,
+    rvgan_model = arch_factory.build_gan(
+        d_coarse=d_model2,
+        d_fine=d_model1,
+        g_coarse=g_model_coarse,
+        g_fine=g_model_fine,
+        inner_weight=config["arch"]["inner_weight"],
     )
     rvgan_file = src.data.ModelFile(
-        name="rvgan_model", folder=args.savedir, arch=rvgan_model
+        name="rvgan_model", folder=output_folder, arch=rvgan_model
     )
 
-    stats = src.data.Statistics(output_folder=args.savedir)
-    vis = src.data.Visualizations(output_folder=args.savedir)
+    stats = src.data.Statistics(output_folder=output_folder)
+    vis = src.data.Visualizations(output_folder=output_folder)
 
     if args.resume_training == "yes":
         d1_file.load(version="latest")
@@ -324,8 +296,8 @@ if __name__ == "__main__":
         stats,
         vis,
         dataset,
-        n_epochs=args.epochs,
-        n_batch=args.batch_size,
-        n_patch=[128, 64],
+        n_epochs=config["train"]["epochs"],
+        n_batch=config["train"]["batch_size"],
+        n_patch=config["train"]["patch_counts"],
     )
     print("Training complete")

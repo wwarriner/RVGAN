@@ -1,4 +1,5 @@
 from functools import partial
+from typing import List
 
 import tensorflow as tf
 from keras.initializers import RandomNormal
@@ -19,6 +20,94 @@ from keras.models import Model
 from keras.optimizers import Adam
 
 from .losses import *
+
+
+class ArchFactory:
+    COARSE = "coarse"
+    FINE = "fine"
+
+    def __init__(self, input_size: List[int], downscale_factor: int):
+        self._input_size = input_size
+        self._downscale_factor = downscale_factor
+
+        self.discriminator_feature_count = 64
+        self.coarse_feature_count = 128
+        self.fine_feature_count = 128
+
+    def get_image_shape(self, scale_type: str) -> List[int]:
+        return self._get_shape(scale_type=scale_type, dim=3)
+
+    def get_mask_shape(self, scale_type: str) -> List[int]:
+        return self._get_shape(scale_type=scale_type, dim=1)
+
+    def get_label_shape(self, scale_type: str) -> List[int]:
+        return self._get_shape(scale_type=scale_type, dim=1)
+
+    def get_image_shape_xglobal(self) -> List[int]:
+        return self._get_shape(scale_type="coarse", dim=128)
+
+    def build_discriminator(self, scale_type: str, name: str) -> Model:
+        return discriminator_ae(
+            self.get_image_shape(scale_type),
+            self.get_label_shape(scale_type),
+            self.discriminator_feature_count,
+            name=name,
+        )
+
+    def build_generator(self, scale_type: str) -> Model:
+        if scale_type.casefold() == "fine":
+            arch = fine_generator(
+                x_coarse_shape=self.get_image_shape_xglobal(),
+                input_shape=self.get_image_shape(scale_type=scale_type),
+                mask_shape=self.get_mask_shape(scale_type=scale_type),
+                nff=self.fine_feature_count,
+                n_blocks=3,
+            )
+        elif scale_type.casefold() == "coarse":
+            arch = coarse_generator(
+                img_shape=self.get_image_shape(scale_type=scale_type),
+                mask_shape=self.get_mask_shape(scale_type=scale_type),
+                n_downsampling=self._downscale_factor,
+                n_blocks=9,
+                ncf=self.coarse_feature_count,
+                n_channels=1,
+            )
+        else:
+            assert False
+        return arch
+
+    def build_gan(
+        self,
+        d_coarse: Model,
+        d_fine: Model,
+        g_coarse: Model,
+        g_fine: Model,
+        inner_weight: float,
+    ) -> Model:
+        return RVgan(
+            g_model_fine=g_fine,
+            g_model_coarse=g_coarse,
+            d_model1=d_fine,
+            d_model2=d_coarse,
+            image_shape_fine=self.get_image_shape(scale_type="fine"),
+            image_shape_coarse=self.get_image_shape(scale_type="coarse"),
+            image_shape_x_coarse=self.get_image_shape_xglobal(),
+            mask_shape_fine=self.get_mask_shape(scale_type="fine"),
+            mask_shape_coarse=self.get_mask_shape(scale_type="coarse"),
+            label_shape_fine=self.get_label_shape(scale_type="fine"),
+            label_shape_coarse=self.get_label_shape(scale_type="coarse"),
+            inner_weight=inner_weight,
+        )
+
+    def _get_shape(self, scale_type: str, dim: int) -> List[int]:
+        if scale_type.casefold() == "fine":
+            size = self._input_size
+            return [*size, dim]
+        elif scale_type.casefold() == "coarse":
+            size = [x // self._downscale_factor for x in self._input_size]
+            return [*size, dim]
+        else:
+            assert False
 
 
 class ReflectionPadding2D(Layer):
