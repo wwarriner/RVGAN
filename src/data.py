@@ -9,7 +9,24 @@ import pandas as pd
 
 import src.dataloader
 
+from PIL import Image
+
 PathLike = Union[Path, PurePath, str]
+
+
+def load_image(path: PathLike) -> np.ndarray:
+    image = Image.open(str(path))
+    image = np.array(image)
+    if image.ndim == 2:
+        image = image[..., np.newaxis]
+    return image
+
+
+def save_image(path: PathLike, image: np.ndarray) -> None:
+    if image.shape[-1] == 1:
+        image = image[..., 0]
+    out = Image.fromarray(image)
+    out.save(str(path))
 
 
 class ModelFile:

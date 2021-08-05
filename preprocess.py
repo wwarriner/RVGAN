@@ -4,7 +4,8 @@ from pathlib import Path, PurePath
 from typing import Callable, List, Tuple
 
 import numpy as np
-from PIL import Image
+
+import src.data
 
 
 def _pad_to_shape(a: np.ndarray, shape: tuple, *args, **kwargs) -> np.ndarray:
@@ -54,7 +55,7 @@ def stride_crop(
 def load_crops(
     image_file: PurePath, crop_fn: Callable[[np.ndarray], np.ndarray],
 ) -> np.ndarray:
-    image = np.array(Image.open(str(image_file)))
+    image = src.data.load_image(image_file)
     print(f"{str(image_file.name)} with shape {image.shape}")
     crops = crop_fn(image)
     return crops
@@ -89,8 +90,7 @@ def save_crop_stack(
         name = "_".join([base_name, str(crop_index + 1)]) + ext
         path = out_folder / name
         crop = crops[crop_index, ...]
-        out = Image.fromarray(crop)
-        out.save(fp=str(path))
+        src.data.save_image(path=path, image=crop)
 
 
 if __name__ == "__main__":
