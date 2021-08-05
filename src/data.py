@@ -104,10 +104,9 @@ class Visualizations:
         # SAVE PLOTS
         base_name = f"{epoch:0>5d}.png"
         # FINE/LOCAL
-        # scale all pixels from [-1,1] to [0,1]
-        X_realA_fine = (X_realA_fine + 1) / 2.0
-        X_realC_fine = (X_realC_fine + 1) / 2.0
-        X_fakeC_fine = (X_fakeC_fine + 1) / 2.0  # type: ignore
+        X_realA_fine = src.dataloader.output_to_intensity(X_realA_fine)
+        X_realC_fine = src.dataloader.output_to_intensity(X_realC_fine)
+        X_fakeC_fine = src.dataloader.output_to_intensity(X_fakeC_fine)  # type: ignore
         for i in range(n_samples):
             plt.subplot(3, n_samples, 1 + i)
             plt.axis("off")
@@ -127,10 +126,9 @@ class Visualizations:
         plt.savefig(file_path)
         plt.close()
         # COARSE/GLOBAL
-        # scale all pixels from [-1,1] to [0,1]
-        X_realA_coarse = (X_realA_coarse + 1) / 2.0
-        X_realC_coarse = (X_realC_coarse + 1) / 2.0
-        X_fakeC_coarse = (X_fakeC_coarse + 1) / 2.0  # type: ignore
+        X_realA_coarse = src.dataloader.output_to_intensity(X_realA_coarse)  # type: ignore
+        X_realC_coarse = src.dataloader.output_to_intensity(X_realC_coarse)  # type: ignore
+        X_fakeC_coarse = src.dataloader.output_to_intensity(X_fakeC_coarse)  # type: ignore
         for i in range(n_samples):
             plt.subplot(3, n_samples, 1 + i)
             plt.axis("off")

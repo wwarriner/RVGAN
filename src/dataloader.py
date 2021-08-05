@@ -4,20 +4,56 @@ import numpy as np
 import cv2
 
 
+def intensity_to_input(image: np.ndarray) -> np.ndarray:
+    image = image.copy()
+    image = image.astype(dtype=np.float64)
+    image = (image - 127.5) / 127.5  # type: ignore
+    return image
+
+
+def binary_to_input(image: np.ndarray) -> np.ndarray:
+    image = image.copy()
+    image = image.astype(dtype=np.float64)
+    if image.max() == 255.0:
+        image = (image - 127.5) / 127.5  # type: ignore
+    else:
+        image = (image - 0.5) / 0.5  # type: ignore
+    return image
+
+
+def output_to_intensity(image: np.ndarray) -> np.ndarray:
+    image = image.copy()
+    image = (image + 1.0) / 2.0  # type: ignore
+    image = 255.0 * image
+    image = image.astype(dtype=np.uint8)
+    return image
+
+
+def output_to_binary(image: np.ndarray) -> np.ndarray:
+    image = image.copy()
+    image = (image + 1.0) / 2.0  # type: ignore
+    image = image.astype(np.bool)
+    return image
+
+
 def load_real_data(filename):
-
     data = np.load(filename)
-    X1, X2, X3 = data["arr_0"], data["arr_1"], data["arr_2"]
+    X1 = data["arr_0"]  # type: ignore
+    X2 = data["arr_1"]  # type: ignore
+    X3 = data["arr_2"]  # type: ignore
 
-    # normalize from [0,255] to [-1,1]
-    X1 = (X1 - 127.5) / 127.5
-    X2 = (X2 - 127.5) / 127.5
-    X3 = (X3 - 127.5) / 127.5
+    assert isinstance(X1, np.ndarray)
+    assert isinstance(X2, np.ndarray)
+    assert isinstance(X3, np.ndarray)
+
+    X1 = intensity_to_input(X1)
+    X2 = binary_to_input(X2)
+    X3 = binary_to_input(X3)
+
     return [X1, X2, X3]
 
 
 def generate_real_data(data, batch_id, batch_size, patch_shape):
-
     trainA, trainB, trainC = data
 
     start = batch_id * batch_size
@@ -30,11 +66,10 @@ def generate_real_data(data, batch_id, batch_size, patch_shape):
 
 
 def generate_real_data_random(data, random_samples, patch_shape):
-
     trainA, trainB, trainC = data
 
-    id = np.random.randint(0, trainA.shape[0], random_samples)
-    X1, X2, X3 = trainA[id], trainB[id], trainC[id]
+    index = np.random.randint(0, trainA.shape[0], random_samples)
+    X1, X2, X3 = trainA[index], trainB[index], trainC[index]
 
     y1 = -np.ones((random_samples, patch_shape[0], patch_shape[0], 1))
     y2 = -np.ones((random_samples, patch_shape[1], patch_shape[1], 1))
@@ -44,7 +79,6 @@ def generate_real_data_random(data, random_samples, patch_shape):
 def generate_fake_data_fine(
     g_model: keras.models.Model, batch_data, batch_mask, x_global, patch_shape
 ):
-
     X = g_model.predict([batch_data, batch_mask, x_global])
     y1 = np.ones((len(X), patch_shape[0], patch_shape[0], 1))
 
