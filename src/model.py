@@ -124,7 +124,7 @@ class ReflectionPadding2D(Layer):
 
     def call(self, x, mask=None):
         w_pad, h_pad = self.padding
-        return tf.pad(x, [[0, 0], [h_pad, h_pad], [w_pad, w_pad], [0, 0]], "REFLECT")
+        return tf.pad(x, [[0, 0], [h_pad, h_pad], [w_pad, w_pad], [0, 0]], "REFLECT")  # type: ignore
 
 
 def novel_residual_block(X_input, filters, base):
@@ -324,7 +324,7 @@ def coarse_generator(
     X_up2_att = SFA(X_pre_down, ncf, 1)
     X_up2_add = Add(name="skip_2")([X_up2_att, X_up2])
     feature_out = X_up2_add
-    print("X_feature", feature_out.shape)
+    print("X_feature", feature_out.shape)  # type: ignore
     X = ReflectionPadding2D((3, 3), name="final/rf")(X_up2_add)
     X = Conv2D(
         n_channels,
@@ -400,7 +400,7 @@ def fine_generator(
         X_up1_att = SFA(X_pre_down, up_filters, i - 1)
         X_up1_add = Add(name="skip_" + str(i))([X_up1_att, X_up1])
 
-    X = ReflectionPadding2D((3, 3), name="final/rf")(X_up1_add)
+    X = ReflectionPadding2D((3, 3), name="final/rf")(X_up1_add)  # type: ignore
     X = Conv2D(
         n_channels,
         kernel_size=(7, 7),
