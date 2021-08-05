@@ -81,47 +81,46 @@ class Visualizations:
 
         # GENERATE DATA
         # REAL
-        [X_realA, X_realB, X_realC], _ = src.dataloader.generate_real_data_random(
-            dataset, n_samples, N_PATCH
-        )
-        # out_shape = np.array(X_realA.shape[1:2]) // 2
-        # out_shape = tuple(x for x in out_shape.tolist())
+        (
+            [X_realA_fine, X_realB_fine, X_realC_fine],
+            _,
+        ) = src.dataloader.generate_real_data_random(dataset, n_samples, N_PATCH)
         out_shape = (
-            int(X_realA.shape[1] / 2),  # TODO magic value
-            int(X_realA.shape[2] / 2),
+            int(X_realA_fine.shape[1] / 2),  # TODO magic value
+            int(X_realA_fine.shape[2] / 2),
         )  # TODO abstract this
-        X_realA_half = src.dataloader.resize_stack(X_realA, out_shape)
-        X_realB_half = src.dataloader.resize_stack(X_realB, out_shape)
-        X_realC_half = src.dataloader.resize_stack(X_realC, out_shape)
+        X_realA_coarse = src.dataloader.resize_stack(X_realA_fine, out_shape)
+        X_realB_coarse = src.dataloader.resize_stack(X_realB_fine, out_shape)
+        X_realC_coarse = src.dataloader.resize_stack(X_realC_fine, out_shape)
         # FAKE_COARSE
-        [X_fakeC_half, x_global], _ = src.dataloader.generate_fake_data_coarse(
-            g_global_model.model, X_realA_half, X_realB_half, N_PATCH
+        [X_fakeC_coarse, x_global], _ = src.dataloader.generate_fake_data_coarse(
+            g_global_model.model, X_realA_coarse, X_realB_coarse, N_PATCH
         )
         # FAKE_FINE
-        X_fakeC, _ = src.dataloader.generate_fake_data_fine(
-            g_local_model.model, X_realA, X_realB, x_global, N_PATCH
+        X_fakeC_fine, _ = src.dataloader.generate_fake_data_fine(
+            g_local_model.model, X_realA_fine, X_realB_fine, x_global, N_PATCH
         )
 
         # SAVE PLOTS
         base_name = f"{epoch:0>5d}.png"
         # FINE/LOCAL
         # scale all pixels from [-1,1] to [0,1]
-        X_realA = (X_realA + 1) / 2.0
-        X_realC = (X_realC + 1) / 2.0
-        X_fakeC = (X_fakeC + 1) / 2.0  # type: ignore
+        X_realA_fine = (X_realA_fine + 1) / 2.0
+        X_realC_fine = (X_realC_fine + 1) / 2.0
+        X_fakeC_fine = (X_fakeC_fine + 1) / 2.0  # type: ignore
         for i in range(n_samples):
             plt.subplot(3, n_samples, 1 + i)
             plt.axis("off")
-            plt.imshow(X_realA[i])
+            plt.imshow(X_realA_fine[i])
         for i in range(n_samples):
             plt.subplot(3, n_samples, 1 + n_samples + i)
             plt.axis("off")
-            twoD_img = X_fakeC[:, :, :, 0]
+            twoD_img = X_fakeC_fine[:, :, :, 0]
             plt.imshow(twoD_img[i], cmap="gray")
         for i in range(n_samples):
             plt.subplot(3, n_samples, 1 + n_samples * 2 + i)
             plt.axis("off")
-            twoD_img = X_realC[:, :, :, 0]
+            twoD_img = X_realC_fine[:, :, :, 0]
             plt.imshow(twoD_img[i], cmap="gray")
         name = "_".join(["fine", base_name])
         file_path = self._folder / name
@@ -129,22 +128,22 @@ class Visualizations:
         plt.close()
         # COARSE/GLOBAL
         # scale all pixels from [-1,1] to [0,1]
-        X_realA_half = (X_realA_half + 1) / 2.0
-        X_realC_half = (X_realC_half + 1) / 2.0
-        X_fakeC_half = (X_fakeC_half + 1) / 2.0  # type: ignore
+        X_realA_coarse = (X_realA_coarse + 1) / 2.0
+        X_realC_coarse = (X_realC_coarse + 1) / 2.0
+        X_fakeC_coarse = (X_fakeC_coarse + 1) / 2.0  # type: ignore
         for i in range(n_samples):
             plt.subplot(3, n_samples, 1 + i)
             plt.axis("off")
-            plt.imshow(X_realA_half[i])
+            plt.imshow(X_realA_coarse[i])
         for i in range(n_samples):
             plt.subplot(3, n_samples, 1 + n_samples + i)
             plt.axis("off")
-            twoD_img = X_fakeC_half[:, :, :, 0]
+            twoD_img = X_fakeC_coarse[:, :, :, 0]
             plt.imshow(twoD_img[i], cmap="gray")
         for i in range(n_samples):
             plt.subplot(3, n_samples, 1 + n_samples * 2 + i)
             plt.axis("off")
-            twoD_img = X_realC_half[:, :, :, 0]
+            twoD_img = X_realC_coarse[:, :, :, 0]
             plt.imshow(twoD_img[i], cmap="gray")
         name = "_".join(["coarse", base_name])
         file_path = self._folder / name
