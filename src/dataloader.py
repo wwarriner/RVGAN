@@ -1,12 +1,12 @@
 import keras.models
 import numpy as np
-import tensorflow as tf
-from numpy import load
+
+import cv2
 
 
 def load_real_data(filename):
 
-    data = load(filename)
+    data = np.load(filename)
     X1, X2, X3 = data["arr_0"], data["arr_1"], data["arr_2"]
 
     # normalize from [0,255] to [-1,1]
@@ -61,14 +61,19 @@ def generate_fake_data_coarse(
     return [X, X_global], y1
 
 
-def resize(X_realA, X_realB, X_realC, out_shape):
-    X_realA = tf.image.resize(X_realA, out_shape, method=tf.image.ResizeMethod.LANCZOS3)
-    X_realA = np.array(X_realA)
-
-    X_realB = tf.image.resize(X_realB, out_shape, method=tf.image.ResizeMethod.LANCZOS3)
-    X_realB = np.array(X_realB)
-
-    X_realC = tf.image.resize(X_realC, out_shape, method=tf.image.ResizeMethod.LANCZOS3)
-    X_realC = np.array(X_realC)
-
+def resize_all(X_realA, X_realB, X_realC, out_shape):
+    X_realA = resize_stack(X_realA, out_shape)
+    X_realB = resize_stack(X_realB, out_shape)
+    X_realC = resize_stack(X_realC, out_shape)
     return [X_realA, X_realB, X_realC]
+
+
+def resize_stack(data, out_shape):
+    out = []
+    for index in range(len(data)):
+        im = cv2.resize(
+            data[index, ...], dsize=out_shape, interpolation=cv2.INTER_LANCZOS4
+        )
+        out.append(im)
+    out = np.stack(out, axis=0)
+    return out

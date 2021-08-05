@@ -86,10 +86,13 @@ class Visualizations:
         )
         # out_shape = np.array(X_realA.shape[1:2]) // 2
         # out_shape = tuple(x for x in out_shape.tolist())
-        out_shape = (int(X_realA.shape[1] / 2), int(X_realA.shape[2] / 2))
-        [X_realA_half, X_realB_half, X_realC_half] = src.dataloader.resize(
-            X_realA, X_realB, X_realC, out_shape
-        )
+        out_shape = (
+            int(X_realA.shape[1] / 2),  # TODO magic value
+            int(X_realA.shape[2] / 2),
+        )  # TODO abstract this
+        X_realA_half = src.dataloader.resize_stack(X_realA, out_shape)
+        X_realB_half = src.dataloader.resize_stack(X_realB, out_shape)
+        X_realC_half = src.dataloader.resize_stack(X_realC, out_shape)
         # FAKE_COARSE
         [X_fakeC_half, x_global], _ = src.dataloader.generate_fake_data_coarse(
             g_global_model.model, X_realA_half, X_realB_half, N_PATCH
