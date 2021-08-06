@@ -19,7 +19,7 @@ from keras.layers import (
 from keras.models import Model
 from keras.optimizers import Adam
 
-from .losses import *
+import src.losses
 
 
 class ArchFactory:
@@ -513,7 +513,7 @@ def RVgan(
 
     # feature matching loss
     fm1 = partial(
-        weighted_feature_matching_loss,
+        src.losses.weighted_feature_matching_loss,
         image_input=in_fine,
         real_samples=label_fine,
         D=d_model1,
@@ -521,7 +521,7 @@ def RVgan(
     )
     # fm1 = partial(feature_matching_loss, image_input=in_fine,real_samples=label_fine, D=d_model1)
     fm2 = partial(
-        weighted_feature_matching_loss,
+        src.losses.weighted_feature_matching_loss,
         image_input=in_coarse,
         real_samples=label_coarse,
         D=d_model2,

@@ -1,40 +1,7 @@
 import keras.models
 import numpy as np
 
-import cv2
-
-
-def intensity_to_input(image: np.ndarray) -> np.ndarray:
-    image = image.copy()
-    image = image.astype(dtype=np.float64)
-    image = (image - 127.5) / 127.5  # type: ignore
-    return image
-
-
-def binary_to_input(image: np.ndarray) -> np.ndarray:
-    image = image.copy()
-    image = image.astype(dtype=np.float64)
-    if image.max() == 255.0:
-        image = (image - 127.5) / 127.5  # type: ignore
-    else:
-        image = (image - 0.5) / 0.5  # type: ignore
-    return image
-
-
-def output_to_intensity(image: np.ndarray) -> np.ndarray:
-    image = image.copy()
-    image = (image + 1.0) / 2.0  # type: ignore
-    image = 255.0 * image
-    image = image.astype(dtype=np.uint8)
-    return image
-
-
-def output_to_binary(image: np.ndarray, threshold: float = 0.5) -> np.ndarray:
-    image = image.copy()
-    image = (image + 1.0) / 2.0  # type: ignore
-    image = image > threshold  # type: ignore
-    image = image.astype(np.bool)
-    return image
+import src.image_util
 
 
 def load_real_data(filename):
@@ -47,9 +14,9 @@ def load_real_data(filename):
     assert isinstance(X2, np.ndarray)
     assert isinstance(X3, np.ndarray)
 
-    X1 = intensity_to_input(X1)
-    X2 = binary_to_input(X2)
-    X3 = binary_to_input(X3)
+    X1 = src.image_util.intensity_to_input(X1)
+    X2 = src.image_util.binary_to_input(X2)
+    X3 = src.image_util.binary_to_input(X3)
 
     return [X1, X2, X3]
 
@@ -89,26 +56,7 @@ def generate_fake_data_fine(
 def generate_fake_data_coarse(
     g_model: keras.models.Model, batch_data, batch_mask, patch_shape
 ):
-
     X, X_global = g_model.predict([batch_data, batch_mask])
     y1 = np.ones((len(X), patch_shape[1], patch_shape[1], 1))
 
     return [X, X_global], y1
-
-
-def resize_all(X_realA, X_realB, X_realC, out_shape):
-    X_realA = resize_stack(X_realA, out_shape)
-    X_realB = resize_stack(X_realB, out_shape)
-    X_realC = resize_stack(X_realC, out_shape)
-    return [X_realA, X_realB, X_realC]
-
-
-def resize_stack(data, out_shape):
-    out = []
-    for index in range(len(data)):
-        im = cv2.resize(
-            data[index, ...], dsize=out_shape, interpolation=cv2.INTER_LANCZOS4
-        )
-        out.append(im)
-    out = np.stack(out, axis=0)
-    return out

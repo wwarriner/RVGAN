@@ -8,13 +8,16 @@ import yaml
 
 import src.data
 import src.dataloader
+import src.file_util
+import src.image_util
 import src.model
 
 
-def batch_update(
+def _batch_update(
     batch: int,
     n_batch: int,
     n_patch: List[int],
+    downscale_factor: int,
     d_model1: src.data.ModelFile,
     d_model2: src.data.ModelFile,
     g_global_model: src.data.ModelFile,
@@ -36,9 +39,11 @@ def batch_update(
         )
 
         # generate a batch of fake samples for Coarse Generator
-        out_shape = (int(X_realA.shape[1] / 2), int(X_realA.shape[2] / 2))
-        [X_realA_half, X_realB_half, X_realC_half] = src.dataloader.resize_all(
-            X_realA, X_realB, X_realC, out_shape
+        out_shape_space_px = src.image_util.downscale_shape_space_px(
+            in_shape_space_px=X_realA.shape[1:2], factor=downscale_factor
+        )
+        [X_realA_half, X_realB_half, X_realC_half] = _coarsen_fine_stacks(
+            X_realA, X_realB, X_realC, out_shape_space_px=out_shape_space_px
         )
         [X_fakeC_half, x_global], y1_coarse = src.dataloader.generate_fake_data_coarse(
             g_global_model.model, X_realA_half, X_realB_half, n_patch
@@ -81,12 +86,12 @@ def batch_update(
     )
 
     # Global Generator image fake and real
-    out_shape = (
+    out_shape_space_px = (
         int(X_realA.shape[1] / 2),
         int(X_realA.shape[2] / 2),
     )  # TODO extract this
-    [X_realA_half, X_realB_half, X_realC_half] = src.dataloader.resize_all(
-        X_realA, X_realB, X_realC, out_shape
+    [X_realA_half, X_realB_half, X_realC_half] = _coarsen_fine_stacks(
+        X_realA, X_realB, X_realC, out_shape_space_px
     )
     [X_fakeC_half, x_global], _ = src.dataloader.generate_fake_data_coarse(
         g_global_model.model, X_realA_half, X_realB_half, n_patch
@@ -160,9 +165,9 @@ def train(
     statistics: src.data.Statistics,
     vis: src.data.Visualizations,
     dataset,
-    n_epochs=20,
-    n_batch=1,
-    n_patch=[64, 32],
+    n_epochs: int,
+    n_batch: int,
+    n_patch: List[int],
 ):
     trainA, _, _ = dataset
     bat_per_epo = int(len(trainA) / n_batch)
@@ -171,10 +176,11 @@ def train(
 
     for epoch in range(start_epoch, n_epochs):
         for batch in range(bat_per_epo):
-            batch_losses = batch_update(
-                batch,
+            batch_losses = _batch_update(
+                batch=batch,
                 n_batch=n_batch,
                 n_patch=n_patch,
+                downscale_factor=downscale_factor,
                 d_model1=d_model1,
                 d_model2=d_model2,
                 g_global_model=g_global_model,
@@ -191,55 +197,67 @@ def train(
             g_local_model=g_local_model,
             dataset=dataset,
         )
-        d_model1.save(version="latest")
-        d_model2.save(version="latest")
-        g_global_model.save(version="latest")
-        g_local_model.save(version="latest")
-        gan_model.save(version="latest")
-        if statistics.is_latest_of_column_smallest(column="g_global"):
-            d_model1.save(version="best")
-            d_model2.save(version="best")
-            g_global_model.save(version="best")
-            g_local_model.save(version="best")
-            gan_model.save(version="best")
+        VERSION = "latest"
+        d_model1.save(version=VERSION)
+        d_model2.save(version=VERSION)
+        g_global_model.save(version=VERSION)
+        g_local_model.save(version=VERSION)
+        gan_model.save(version=VERSION)
+
+
+def _coarsen_fine_stacks(X_realA, X_realB, X_realC, out_shape_space_px):
+    X_realA = src.image_util.resize_stack(
+        stack=X_realA, out_shape_space_px=out_shape_space_px
+    )
+    X_realB = src.image_util.resize_stack(
+        stack=X_realB, out_shape_space_px=out_shape_space_px
+    )
+    X_realC = src.image_util.resize_stack(
+        stack=X_realC, out_shape_space_px=out_shape_space_px
+    )
+    return [X_realA, X_realB, X_realC]
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--npz_file", type=str, help="path/to/npz/file",
+        "--npz_file", type=str, required=True, help="path/to/npz/file",
     )
     parser.add_argument(
         "--savedir",
         type=str,
-        required=False,
+        required=True,
         help="path/to/save_directory",
         default="RVGAN",
     )
-    parser.add_argument(
-        "--resume_training",
-        type=str,
-        required=False,
-        default="no",
-        choices=["yes", "no"],
-    )
+    parser.add_argument("--resume_training", action="store_true")
+    parser.add_argument("--config_file", type=str, default="config.yaml")
     args = parser.parse_args()
 
-    with open("config.yaml") as f:
-        config = yaml.safe_load(f)
-    input_file = PurePath(args.npz_file)
+    input_npz_file = PurePath(args.npz_file)
+    assert src.file_util.check_file(input_npz_file)
+
     output_folder = PurePath(args.savedir)
     Path(output_folder).mkdir(parents=True, exist_ok=True)
 
-    K.clear_session()
-    gc.collect()
-    dataset = src.dataloader.load_real_data(input_file)
+    config_file = PurePath(args.config_file)
+    assert src.file_util.check_file(config_file)
+
+    resume_training = args.resume_training
+
+    config = src.file_util.read_yaml(path=config_file)
+    input_shape_px = config["arch"]["input_size"]
+    downscale_factor = config["arch"]["downscale_factor"]
+    inner_weight = config["arch"]["inner_weight"]
+    epoch_count = config["train"]["epochs"]
+    batch_size = config["train"]["batch_size"]
+    patch_counts = config["train"]["patch_counts"]
+
+    dataset = src.dataloader.load_real_data(filename=input_npz_file)
     print("Loaded", dataset[0].shape, dataset[1].shape)
 
-    # define input shape based on the loaded dataset
     arch_factory = src.model.ArchFactory(
-        input_size=config["arch"]["input_size"],
-        downscale_factor=config["arch"]["downscale_factor"],
+        input_size=input_shape_px, downscale_factor=downscale_factor,
     )
 
     d_model1 = arch_factory.build_discriminator(scale_type="fine", name="D1")
@@ -267,7 +285,7 @@ if __name__ == "__main__":
         d_fine=d_model1,
         g_coarse=g_model_coarse,
         g_fine=g_model_fine,
-        inner_weight=config["arch"]["inner_weight"],
+        inner_weight=inner_weight,
     )
     rvgan_file = src.data.ModelFile(
         name="rvgan_model", folder=output_folder, arch=rvgan_model
@@ -276,12 +294,13 @@ if __name__ == "__main__":
     stats = src.data.Statistics(output_folder=output_folder)
     vis = src.data.Visualizations(output_folder=output_folder)
 
-    if args.resume_training == "yes":
-        d1_file.load(version="latest")
-        d2_file.load(version="latest")
-        g_coarse_file.load(version="latest")
-        g_fine_file.load(version="latest")
-        rvgan_file.load(version="latest")
+    if args.resume_training:
+        VERSION = "latest"
+        d1_file.load(version=VERSION)
+        d2_file.load(version=VERSION)
+        g_coarse_file.load(version=VERSION)
+        g_fine_file.load(version=VERSION)
+        rvgan_file.load(version=VERSION)
         stats.load()
 
     train(
@@ -293,8 +312,8 @@ if __name__ == "__main__":
         stats,
         vis,
         dataset,
-        n_epochs=config["train"]["epochs"],
-        n_batch=config["train"]["batch_size"],
-        n_patch=config["train"]["patch_counts"],
+        n_epochs=epoch_count,
+        n_batch=batch_size,
+        n_patch=patch_counts,
     )
     print("Training complete")

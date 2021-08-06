@@ -16,6 +16,4 @@ out="./train_data/stare_mini_crop"
 
 python -u preprocess.py \
     --input_folder "${in}" \
-    --output_folder "${out}" \
-    --input_dim 128 \
-    --stride 32
+    --output_folder "${out}"
