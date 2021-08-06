@@ -66,12 +66,13 @@ if __name__ == "__main__":
     mask_extension = src.file_util.fix_ext(args.mask_extension)
 
     config = src.file_util.read_yaml(config_file)
+    input_shape_px = np.array(config["arch"]["input_size"])
+    downscale_factor = config["arch"]["downscale_factor"]
 
     # LOAD MODELS
     print("loading models...")
     arch_factory = src.model.ArchFactory(
-        input_size=config["arch"]["input_size"],
-        downscale_factor=config["arch"]["downscale_factor"],
+        input_size=input_shape_px, downscale_factor=downscale_factor
     )
 
     g_model_fine = arch_factory.build_generator(scale_type="fine")
@@ -88,8 +89,6 @@ if __name__ == "__main__":
 
     # LOAD AND PROCESS IMAGES
     print("evaluating...")
-    input_shape_px = np.array(config["arch"]["input_size"])
-
     image_files = Path(input_folder / "image").glob(pattern="*" + image_extension)
     image_files = sorted(list(image_files))
 
