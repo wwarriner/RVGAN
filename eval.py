@@ -9,6 +9,9 @@ import src.dataloader
 import src.image_util
 import src.model
 
+# TODO GLOBAL rename to FINE
+# TODO LOCAL rename to COARSE
+
 
 def eval(
     g_global_model: src.data.ModelFile,
@@ -34,9 +37,6 @@ def eval(
         g_global_model.model, image_chunks, mask_chunks, x_global, N_PATCH
     )
     return out  # type: ignore
-
-
-# TODO def reassemble full images
 
 
 if __name__ == "__main__":
