@@ -2,10 +2,8 @@ import argparse
 from pathlib import Path, PurePath
 
 import numpy as np
-import yaml
 
 import src.data
-import src.dataloader
 import src.file_util
 import src.image_util
 import src.model

@@ -1,14 +1,10 @@
 import argparse
-import gc
 from pathlib import Path, PurePath
 from typing import Dict, List
 
-import keras.backend as K
-import yaml
 import numpy as np
 
 import src.data
-import src.dataloader
 import src.file_util
 import src.image_util
 import src.model
