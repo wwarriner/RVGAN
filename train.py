@@ -193,17 +193,12 @@ def train(
             g_local_model=g_local_model,
             dataset=dataset,
         )
-        d_model1.save(version="latest")
-        d_model2.save(version="latest")
-        g_global_model.save(version="latest")
-        g_local_model.save(version="latest")
-        gan_model.save(version="latest")
-        if statistics.is_latest_of_column_smallest(column="g_global"):
-            d_model1.save(version="best")
-            d_model2.save(version="best")
-            g_global_model.save(version="best")
-            g_local_model.save(version="best")
-            gan_model.save(version="best")
+        VERSION = "latest"
+        d_model1.save(version=VERSION)
+        d_model2.save(version=VERSION)
+        g_global_model.save(version=VERSION)
+        g_local_model.save(version=VERSION)
+        gan_model.save(version=VERSION)
 
 
 def _coarsen_fine_stacks(X_realA, X_realB, X_realC, out_shape_space_px):
