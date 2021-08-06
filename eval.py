@@ -18,30 +18,19 @@ def eval(
     g_c: src.data.ModelFile,
     g_f: src.data.ModelFile,
 ) -> np.ndarray:
-    coarse_shape_space_px = src.image_util.downscale_shape_space_px(
-        in_shape_space_px=image_chunks.shape[1:3], factor=downscale_factor
-    )
-    image_chunks_coarse = src.image_util.resize_stack(
-        stack=image_chunks, out_shape_space_px=coarse_shape_space_px
-    )
-    mask_chunks_coarse = src.image_util.resize_stack(
-        stack=mask_chunks, out_shape_space_px=coarse_shape_space_px
-    )
-
-    patch_counts = [1, 1]
-    [_, weights_c_to_f], _ = src.dataloader.generate_cx(
-        g_c_arch=g_c.model,
-        XA_cr=image_chunks_coarse,
-        XB_cr=mask_chunks_coarse,
-        patch_counts=patch_counts,
-    )
-    out, _ = src.dataloader.generate_fx(
-        g_f_arch=g_f.model,
+    dummy_label_chunks = np.zeros_like(mask_chunks)
+    dummy_images_per_batch = 1
+    dataset = src.data.Dataset(
         XA_fr=image_chunks,
         XB_fr=mask_chunks,
-        weights_c_to_f=weights_c_to_f,
-        patch_counts=patch_counts,
+        XC_fr=dummy_label_chunks,
+        downscale_factor=downscale_factor,
+        images_per_batch=dummy_images_per_batch,
+        g_f_arch=g_f.model,
+        g_c_arch=g_c.model,
     )
+    data = dataset.get_full_data()
+    out = data["XC_fx"]
     return out  # type: ignore
 
 

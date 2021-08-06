@@ -5,6 +5,7 @@ from typing import Dict, List
 
 import keras.backend as K
 import yaml
+import numpy as np
 
 import src.data
 import src.dataloader
@@ -14,7 +15,7 @@ import src.model
 
 
 def _batch_update(
-    dataset,
+    dataset: src.data.Dataset,
     batch_index: int,
     images_per_batch: int,
     patch_counts: List[int],
@@ -43,24 +44,15 @@ def _batch_update(
     gan.model.trainable = False
     g_c.model.trainable = False
     g_f.model.trainable = False
-    real_data_generator = lambda: src.dataloader.generate_fr(
-        dataset, batch_index, images_per_batch, patch_counts
-    )
-    cycled_data = src.dataloader.cycle_data(
-        real_data_generator=real_data_generator,
-        downscale_factor=downscale_factor,
-        patch_counts=patch_counts,
-        g_c_arch=g_c.model,
-        g_f_arch=g_f.model,
-    )
-    [XA_fr, XB_fr, XC_fr] = cycled_data["X_fr"]
-    [y1_fr, y2_fr] = cycled_data["y_fr"]
-    [XA_cr, XB_cr, XC_cr] = cycled_data["X_cr"]
-    XC_cx = cycled_data["XC_cx"]
-    y1_cx = cycled_data["y_cx"]
-    XC_fx = cycled_data["XC_fx"]
-    y1_fx = cycled_data["y_fx"]
-    weights_c_to_f = cycled_data["c_to_f"]
+    data = dataset.get_batch_data(batch_index=batch_index)
+    [XA_fr, XB_fr, XC_fr] = data["X_fr"]
+    [y1_fr, y2_fr] = data["y_fr"]
+    [XA_cr, XB_cr, XC_cr] = data["X_cr"]
+    XC_cx = data["XC_cx"]
+    y1_cx = data["y_cx"]
+    XC_fx = data["XC_fx"]
+    y1_fx = data["y_fx"]
+    weights_c_to_f = data["c_to_f"]
 
     # UPDATE DISCRIMINATORS
     d_f.model.trainable = True
@@ -147,6 +139,7 @@ def train(
     statistics.start_timer()
 
     for epoch in range(start_epoch, epoch_count):
+        # TODO shuffle
         for batch in range(batches_per_epoch):
             batch_losses = _batch_update(
                 dataset=dataset,
@@ -173,7 +166,6 @@ def train(
         gan.save(version=VERSION)
 
 
-# TODO save optimizer state to disk and reload
 # TODO shuffle data each epoch
 
 
@@ -205,15 +197,12 @@ if __name__ == "__main__":
     resume_training = args.resume_training
 
     config = src.file_util.read_yaml(path=config_file)
-    input_shape_px = config["arch"]["input_size"]
+    input_shape_px = np.array(config["arch"]["input_size"])
     downscale_factor = config["arch"]["downscale_factor"]
     inner_weight = config["arch"]["inner_weight"]
     epoch_count = config["train"]["epochs"]
     images_per_batch = config["train"]["batch_size"]
     patch_counts = config["train"]["patch_counts"]
-
-    dataset = src.dataloader.load_real_data(path=input_npz_file)
-    print("Loaded", dataset[0].shape, dataset[1].shape)
 
     arch_factory = src.model.ArchFactory(
         input_shape_px=input_shape_px, downscale_factor=downscale_factor,
@@ -243,6 +232,18 @@ if __name__ == "__main__":
         inner_weight=inner_weight,
     )
     gan = src.data.ModelFile(name="rvgan_model", folder=output_folder, arch=rvgan_model)
+
+    [XA_fr, XB_fr, XC_fr] = src.data.load_npz_data(path=input_npz_file)
+    print("Loaded", XA_fr.shape, XB_fr.shape)
+    dataset = src.data.Dataset(
+        XA_fr=XA_fr,
+        XB_fr=XB_fr,
+        XC_fr=XC_fr,
+        downscale_factor=downscale_factor,
+        images_per_batch=images_per_batch,
+        g_f_arch=g_f.model,
+        g_c_arch=g_c.model,
+    )
 
     statistics = src.data.Statistics(output_folder=output_folder)
     visualizations = src.data.Visualizations(
