@@ -1,20 +1,14 @@
 import argparse
 import gc
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Dict, List
 
 import keras.backend as K
 import yaml
 
 import src.data
-from src.dataloader import (
-    generate_fake_data_coarse,
-    generate_fake_data_fine,
-    generate_real_data,
-    load_real_data,
-    resize,
-)
-from src.model import RVgan, coarse_generator, discriminator_ae, fine_generator
+import src.dataloader
+import src.model
 
 
 def batch_update(
@@ -35,23 +29,23 @@ def batch_update(
     gan_model.model.trainable = False
     g_global_model.model.trainable = False
     g_local_model.model.trainable = False
-    for j in range(2):
+    for _ in range(2):
         # select a batch of real samples
-        [X_realA, X_realB, X_realC], [y1, y2] = generate_real_data(
+        [X_realA, X_realB, X_realC], [y1, y2] = src.dataloader.generate_real_data(
             dataset, batch, n_batch, n_patch
         )
 
         # generate a batch of fake samples for Coarse Generator
         out_shape = (int(X_realA.shape[1] / 2), int(X_realA.shape[2] / 2))
-        [X_realA_half, X_realB_half, X_realC_half] = resize(
+        [X_realA_half, X_realB_half, X_realC_half] = src.dataloader.resize_all(
             X_realA, X_realB, X_realC, out_shape
         )
-        [X_fakeC_half, x_global], y1_coarse = generate_fake_data_coarse(
+        [X_fakeC_half, x_global], y1_coarse = src.dataloader.generate_fake_data_coarse(
             g_global_model.model, X_realA_half, X_realB_half, n_patch
         )
 
         # generate a batch of fake samples for Fine Generator
-        X_fakeC, y1_fine = generate_fake_data_fine(
+        X_fakeC, y1_fine = src.dataloader.generate_fake_data_fine(
             g_local_model.model, X_realA, X_realB, x_global, n_patch
         )
 
@@ -72,7 +66,7 @@ def batch_update(
         d_loss4 = d_model2.model.train_on_batch(
             [X_realA_half, X_fakeC_half], y1_coarse
         )[0]
-    batch_losses.update({"d1": d_loss1, "d2": d_loss2, "d3": d_loss3, "d4": d_loss4})
+    batch_losses.update({"d1": d_loss1, "d2": d_loss2, "d3": d_loss3, "d4": d_loss4})  # type: ignore
 
     # UPDATE GLOBAL GENERATOR
     d_model1.model.trainable = False
@@ -82,16 +76,19 @@ def batch_update(
     g_local_model.model.trainable = False
 
     # select a batch of real samples for Local enhancer
-    [X_realA, X_realB, X_realC], _ = generate_real_data(
+    [X_realA, X_realB, X_realC], _ = src.dataloader.generate_real_data(
         dataset, batch, n_batch, n_patch
     )
 
     # Global Generator image fake and real
-    out_shape = (int(X_realA.shape[1] / 2), int(X_realA.shape[2] / 2))
-    [X_realA_half, X_realB_half, X_realC_half] = resize(
+    out_shape = (
+        int(X_realA.shape[1] / 2),
+        int(X_realA.shape[2] / 2),
+    )  # TODO extract this
+    [X_realA_half, X_realB_half, X_realC_half] = src.dataloader.resize_all(
         X_realA, X_realB, X_realC, out_shape
     )
-    [X_fakeC_half, x_global], _ = generate_fake_data_coarse(
+    [X_fakeC_half, x_global], _ = src.dataloader.generate_fake_data_coarse(
         g_global_model.model, X_realA_half, X_realB_half, n_patch
     )
 
@@ -139,7 +136,7 @@ def batch_update(
             X_realC,
             X_realC_half,
         ],
-        [y1, y2, X_fakeC, X_fakeC_half, X_fakeC_half, X_fakeC, X_fakeC_half, X_fakeC,],
+        [y1, y2, X_fakeC, X_fakeC_half, X_fakeC_half, X_fakeC, X_fakeC_half, X_fakeC,],  # type: ignore
     )
     batch_losses.update(
         {
@@ -236,7 +233,7 @@ if __name__ == "__main__":
 
     K.clear_session()
     gc.collect()
-    dataset = load_real_data(input_file)
+    dataset = src.dataloader.load_real_data(input_file)
     print("Loaded", dataset[0].shape, dataset[1].shape)
 
     # define input shape based on the loaded dataset
