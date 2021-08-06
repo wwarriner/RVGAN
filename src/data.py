@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-import src.dataloader
 import src.image_util
 
 PathLike = Union[Path, PurePath, str]
