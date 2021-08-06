@@ -96,18 +96,18 @@ def generate_fake_data_coarse(
     return [X, X_global], y1
 
 
-def resize_all(X_realA, X_realB, X_realC, out_shape):
-    X_realA = resize_stack(X_realA, out_shape)
-    X_realB = resize_stack(X_realB, out_shape)
-    X_realC = resize_stack(X_realC, out_shape)
+def resize_all(X_realA, X_realB, X_realC, out_shape_space):
+    X_realA = resize_stack(data=X_realA, out_shape_space=out_shape_space)
+    X_realB = resize_stack(data=X_realB, out_shape_space=out_shape_space)
+    X_realC = resize_stack(data=X_realC, out_shape_space=out_shape_space)
     return [X_realA, X_realB, X_realC]
 
 
-def resize_stack(data, out_shape):
+def resize_stack(data, out_shape_space):
     out = []
     for index in range(len(data)):
         im = cv2.resize(
-            data[index, ...], dsize=out_shape, interpolation=cv2.INTER_LANCZOS4
+            data[index, ...], dsize=out_shape_space, interpolation=cv2.INTER_LANCZOS4
         )
         out.append(im)
     out = np.stack(out, axis=0)

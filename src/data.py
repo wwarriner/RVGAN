@@ -85,13 +85,19 @@ class Visualizations:
             [X_realA_fine, X_realB_fine, X_realC_fine],
             _,
         ) = src.dataloader.generate_real_data_random(dataset, n_samples, N_PATCH)
-        out_shape = (
+        out_shape_space = (
             int(X_realA_fine.shape[1] / 2),  # TODO magic value
             int(X_realA_fine.shape[2] / 2),
         )  # TODO abstract this
-        X_realA_coarse = src.dataloader.resize_stack(X_realA_fine, out_shape)
-        X_realB_coarse = src.dataloader.resize_stack(X_realB_fine, out_shape)
-        X_realC_coarse = src.dataloader.resize_stack(X_realC_fine, out_shape)
+        X_realA_coarse = src.dataloader.resize_stack(
+            data=X_realA_fine, out_shape_space=out_shape_space
+        )
+        X_realB_coarse = src.dataloader.resize_stack(
+            data=X_realB_fine, out_shape_space=out_shape_space
+        )
+        X_realC_coarse = src.dataloader.resize_stack(
+            data=X_realC_fine, out_shape_space=out_shape_space
+        )
         # FAKE_COARSE
         [X_fakeC_coarse, x_global], _ = src.dataloader.generate_fake_data_coarse(
             g_global_model.model, X_realA_coarse, X_realB_coarse, N_PATCH

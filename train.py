@@ -36,9 +36,9 @@ def batch_update(
         )
 
         # generate a batch of fake samples for Coarse Generator
-        out_shape = (int(X_realA.shape[1] / 2), int(X_realA.shape[2] / 2))
+        out_shape_space_px = (int(X_realA.shape[1] / 2), int(X_realA.shape[2] / 2))
         [X_realA_half, X_realB_half, X_realC_half] = src.dataloader.resize_all(
-            X_realA, X_realB, X_realC, out_shape
+            X_realA, X_realB, X_realC, out_shape_space=out_shape_space_px
         )
         [X_fakeC_half, x_global], y1_coarse = src.dataloader.generate_fake_data_coarse(
             g_global_model.model, X_realA_half, X_realB_half, n_patch
@@ -81,12 +81,12 @@ def batch_update(
     )
 
     # Global Generator image fake and real
-    out_shape = (
+    out_shape_space_px = (
         int(X_realA.shape[1] / 2),
         int(X_realA.shape[2] / 2),
     )  # TODO extract this
     [X_realA_half, X_realB_half, X_realC_half] = src.dataloader.resize_all(
-        X_realA, X_realB, X_realC, out_shape
+        X_realA, X_realB, X_realC, out_shape_space_px
     )
     [X_fakeC_half, x_global], _ = src.dataloader.generate_fake_data_coarse(
         g_global_model.model, X_realA_half, X_realB_half, n_patch
