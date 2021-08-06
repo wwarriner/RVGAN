@@ -1,4 +1,5 @@
 from functools import partial
+from typing import List
 
 import tensorflow as tf
 from keras.initializers import RandomNormal
@@ -18,7 +19,95 @@ from keras.layers import (
 from keras.models import Model
 from keras.optimizers import Adam
 
-from .losses import *
+import src.losses
+
+
+class ArchFactory:
+    COARSE = "coarse"
+    FINE = "fine"
+
+    def __init__(self, input_shape_px: List[int], downscale_factor: int):
+        self._input_size = input_shape_px
+        self._downscale_factor = downscale_factor
+
+        self.discriminator_feature_count = 64
+        self.coarse_feature_count = 128
+        self.fine_feature_count = 128
+
+    def build_discriminator(self, scale_type: str, name: str) -> Model:
+        return discriminator_ae(
+            self._get_image_shape(scale_type),
+            self._get_label_shape(scale_type),
+            self.discriminator_feature_count,
+            name=name,
+        )
+
+    def build_generator(self, scale_type: str) -> Model:
+        if scale_type.casefold() == "fine":
+            arch = fine_generator(
+                x_coarse_shape=self._get_image_shape_xglobal(),
+                input_shape=self._get_image_shape(scale_type=scale_type),
+                mask_shape=self._get_mask_shape(scale_type=scale_type),
+                nff=self.fine_feature_count,
+                n_blocks=3,
+            )
+        elif scale_type.casefold() == "coarse":
+            arch = coarse_generator(
+                img_shape=self._get_image_shape(scale_type=scale_type),
+                mask_shape=self._get_mask_shape(scale_type=scale_type),
+                n_downsampling=self._downscale_factor,
+                n_blocks=9,
+                ncf=self.coarse_feature_count,
+                n_channels=1,
+            )
+        else:
+            assert False
+        return arch
+
+    def build_gan(
+        self,
+        d_coarse: Model,
+        d_fine: Model,
+        g_coarse: Model,
+        g_fine: Model,
+        inner_weight: float,
+    ) -> Model:
+        return RVgan(
+            g_model_fine=g_fine,
+            g_model_coarse=g_coarse,
+            d_model1=d_fine,
+            d_model2=d_coarse,
+            image_shape_fine=self._get_image_shape(scale_type="fine"),
+            image_shape_coarse=self._get_image_shape(scale_type="coarse"),
+            image_shape_x_coarse=self._get_image_shape_xglobal(),
+            mask_shape_fine=self._get_mask_shape(scale_type="fine"),
+            mask_shape_coarse=self._get_mask_shape(scale_type="coarse"),
+            label_shape_fine=self._get_label_shape(scale_type="fine"),
+            label_shape_coarse=self._get_label_shape(scale_type="coarse"),
+            inner_weight=inner_weight,
+        )
+
+    def _get_image_shape(self, scale_type: str) -> List[int]:
+        return self._get_shape(scale_type=scale_type, dim=3)
+
+    def _get_mask_shape(self, scale_type: str) -> List[int]:
+        return self._get_shape(scale_type=scale_type, dim=1)
+
+    def _get_label_shape(self, scale_type: str) -> List[int]:
+        return self._get_shape(scale_type=scale_type, dim=1)
+
+    def _get_image_shape_xglobal(self) -> List[int]:
+        return self._get_shape(scale_type="coarse", dim=128)
+
+    def _get_shape(self, scale_type: str, dim: int) -> List[int]:
+        if scale_type.casefold() == "fine":
+            size = self._input_size
+            return [*size, dim]
+        elif scale_type.casefold() == "coarse":
+            size = [x // self._downscale_factor for x in self._input_size]
+            return [*size, dim]
+        else:
+            assert False
 
 
 class ReflectionPadding2D(Layer):
@@ -35,7 +124,7 @@ class ReflectionPadding2D(Layer):
 
     def call(self, x, mask=None):
         w_pad, h_pad = self.padding
-        return tf.pad(x, [[0, 0], [h_pad, h_pad], [w_pad, w_pad], [0, 0]], "REFLECT")
+        return tf.pad(x, [[0, 0], [h_pad, h_pad], [w_pad, w_pad], [0, 0]], "REFLECT")  # type: ignore
 
 
 def novel_residual_block(X_input, filters, base):
@@ -235,7 +324,7 @@ def coarse_generator(
     X_up2_att = SFA(X_pre_down, ncf, 1)
     X_up2_add = Add(name="skip_2")([X_up2_att, X_up2])
     feature_out = X_up2_add
-    print("X_feature", feature_out.shape)
+    print("X_feature", feature_out.shape)  # type: ignore
     X = ReflectionPadding2D((3, 3), name="final/rf")(X_up2_add)
     X = Conv2D(
         n_channels,
@@ -311,7 +400,7 @@ def fine_generator(
         X_up1_att = SFA(X_pre_down, up_filters, i - 1)
         X_up1_add = Add(name="skip_" + str(i))([X_up1_att, X_up1])
 
-    X = ReflectionPadding2D((3, 3), name="final/rf")(X_up1_add)
+    X = ReflectionPadding2D((3, 3), name="final/rf")(X_up1_add)  # type: ignore
     X = Conv2D(
         n_channels,
         kernel_size=(7, 7),
@@ -424,7 +513,7 @@ def RVgan(
 
     # feature matching loss
     fm1 = partial(
-        weighted_feature_matching_loss,
+        src.losses.weighted_feature_matching_loss,
         image_input=in_fine,
         real_samples=label_fine,
         D=d_model1,
@@ -432,7 +521,7 @@ def RVgan(
     )
     # fm1 = partial(feature_matching_loss, image_input=in_fine,real_samples=label_fine, D=d_model1)
     fm2 = partial(
-        weighted_feature_matching_loss,
+        src.losses.weighted_feature_matching_loss,
         image_input=in_coarse,
         real_samples=label_coarse,
         D=d_model2,

@@ -1,6 +1,6 @@
 import datetime
 from pathlib import Path, PurePath
-from typing import Union
+from typing import Callable, List, Union
 
 import keras.models
 import matplotlib.pyplot as plt
@@ -8,8 +8,168 @@ import numpy as np
 import pandas as pd
 
 import src.dataloader
+import src.image_util
 
 PathLike = Union[Path, PurePath, str]
+
+
+class Dataset:
+    """
+    A is RGB image data
+    B is binary mask data
+    C is binary label data
+
+    d_ = discriminator
+    g_ = generator
+    _c = coarse
+    _f = fine
+
+    _fr = fine real
+    _cr = coarse real
+    _fx = fine fake
+    _cx = coarse fake
+    """
+
+    def __init__(
+        self,
+        XA_fr,
+        XB_fr,
+        XC_fr,
+        downscale_factor: int,
+        images_per_batch: int,
+        g_f_arch: keras.models.Model,
+        g_c_arch: keras.models.Model,
+    ):
+        image_shape_px_f = np.ndarray(XA_fr.shape[1:3])
+        image_shape_px_c = src.image_util.downscale_shape_space_px(
+            in_shape_space_px=image_shape_px_f, factor=downscale_factor  # type: ignore
+        )
+        image_shape_px_c = np.ndarray(image_shape_px_c)
+
+        self._XA_fr = XA_fr
+        self._XB_fr = XB_fr
+        self._XC_fr = XC_fr
+        self._downscale_factor = downscale_factor
+        self._images_per_batch = images_per_batch
+        self._image_shape_px_f = image_shape_px_f
+        self._image_shape_px_c = image_shape_px_c
+        self._g_f_arch = g_f_arch
+        self._g_c_arch = g_c_arch
+
+    @property
+    def image_count(self) -> int:
+        return self._XA_fr.shape[0]
+
+    def shuffle(self) -> None:
+        indices = self._shuffled_indices
+        self._XA_fr = self._XA_fr[indices, ...]
+        self._XB_fr = self._XB_fr[indices, ...]
+        self._XC_fr = self._XC_fr[indices, ...]
+
+    def get_full_data(self) -> dict:
+        indices = list(range(self.image_count))
+        generate_fr_func = lambda: self._generate_fr(indices=indices)
+        out = self._cycle(generate_fr_func=generate_fr_func)
+        return out
+
+    def get_batch_data(self, batch_index: int) -> dict:
+        start = batch_index * self._images_per_batch
+        end = start + self._images_per_batch
+        indices = list(range(start=start, stop=end))
+        generate_fr_func = lambda: self._generate_fr(indices=indices)
+        out = self._cycle(generate_fr_func=generate_fr_func)
+        return out
+
+    def get_random_sample_data(self, sample_count: int) -> dict:
+        indices = np.random.randint(0, self.image_count, sample_count).tolist()
+        generate_fr_func = lambda: self._generate_fr(indices=indices)
+        out = self._cycle(generate_fr_func=generate_fr_func)
+        return out
+
+    def _cycle(self, generate_fr_func: Callable) -> dict:
+        [XA_fr, XB_fr, XC_fr], [y1_fr, y2_fr] = generate_fr_func()
+        [XA_cr, XB_cr, XC_cr] = self._generate_cr(XA_fr=XA_fr, XB_fr=XB_fr, XC_fr=XC_fr)
+        [XC_cx, weights_c_to_f], y1_cx = self._generate_cx(XA_cr=XA_cr, XB_cr=XB_cr)
+        XC_fx, y1_fx = self._generate_fx(
+            XA_fr=XA_fr, XB_fr=XB_fr, weights_c_to_f=weights_c_to_f,
+        )
+
+        out = {
+            "X_fr": [XA_fr, XB_fr, XC_fr],
+            "y_fr": [y1_fr, y2_fr],
+            "X_cr": [XA_cr, XB_cr, XC_cr],
+            "XC_cx": XC_cx,
+            "y_cx": y1_cx,
+            "XC_fx": XC_fx,
+            "y_fx": y1_fx,
+            "c_to_f": weights_c_to_f,
+        }
+        return out
+
+    def _generate_fr(self, indices: List[int]):
+        batch_XA_fr = self._XA_fr[indices, ...]
+        batch_XB_fr = self._XB_fr[indices, ...]
+        batch_XC_fr = self._XC_fr[indices, ...]
+
+        y1_fr = -self._init_batch_y(image_shape_px=self._image_shape_px_f)
+        y2_fr = -self._init_batch_y(image_shape_px=self._image_shape_px_c)
+        return [batch_XA_fr, batch_XB_fr, batch_XC_fr], [y1_fr, y2_fr]
+
+    def _generate_cr(self, XA_fr, XB_fr, XC_fr):
+        out_shape_space_px = src.image_util.downscale_shape_space_px(
+            in_shape_space_px=XA_fr.shape[1:3], factor=self._downscale_factor
+        )
+        XA_fr = src.image_util.resize_stack(
+            stack=XA_fr, out_shape_space_px=out_shape_space_px
+        )
+        XB_fr = src.image_util.resize_stack(
+            stack=XB_fr, out_shape_space_px=out_shape_space_px
+        )
+        XC_fr = src.image_util.resize_stack(
+            stack=XC_fr, out_shape_space_px=out_shape_space_px
+        )
+        return [XA_fr, XB_fr, XC_fr]
+
+    def _generate_cx(self, XA_cr, XB_cr):
+        X_cx, weights_c_to_f = self._g_c_arch.predict([XA_cr, XB_cr])
+        y1_cx = self._init_batch_y(image_shape_px=self._image_shape_px_c)
+        return [X_cx, weights_c_to_f], y1_cx
+
+    def _generate_fx(self, XA_fr, XB_fr, weights_c_to_f):
+        X_fx = self._g_f_arch.predict([XA_fr, XB_fr, weights_c_to_f])
+        y1_fx = self._init_batch_y(image_shape_px=self._image_shape_px_f)
+        return X_fx, y1_fx
+
+    def _init_batch_y(self, image_shape_px: np.ndarray) -> np.ndarray:
+        return self._init_y(
+            sample_count=self._images_per_batch, image_shape_px=image_shape_px
+        )
+
+    def _init_y(self, sample_count: int, image_shape_px: np.ndarray) -> np.ndarray:
+        y = np.ones((sample_count, *image_shape_px, 1))  # type: ignore
+        return y
+
+    def _shuffled_indices(self) -> np.ndarray:
+        indices = np.arange(len(self._XA_fr))
+        indices = np.random.shuffle(indices)
+        return indices
+
+
+def load_npz_data(path: PurePath):
+    data = np.load(path)
+    XA_fr = data["arr_0"]  # type: ignore
+    XB_fr = data["arr_1"]  # type: ignore
+    XC_fr = data["arr_2"]  # type: ignore
+
+    assert isinstance(XA_fr, np.ndarray)
+    assert isinstance(XB_fr, np.ndarray)
+    assert isinstance(XC_fr, np.ndarray)
+
+    XA_fr = src.image_util.intensity_to_input(XA_fr)
+    XB_fr = src.image_util.binary_to_input(XB_fr)
+    XC_fr = src.image_util.binary_to_input(XC_fr)
+
+    return [XA_fr, XB_fr, XC_fr]
 
 
 class ModelFile:
@@ -38,17 +198,23 @@ class ModelFile:
 
 
 class Visualizations:
-    def __init__(self, output_folder: PathLike):
-        self._folder = PurePath(output_folder)
-
-    def save_plot(
+    def __init__(
         self,
-        epoch: int,
-        g_global_model: ModelFile,
-        g_local_model: ModelFile,
-        dataset,
-        n_samples=3,
+        output_folder: PathLike,
+        dataset: Dataset,
+        downscale_factor: int,
+        sample_count: int,
+        g_c: ModelFile,
+        g_f: ModelFile,
     ):
+        self._folder = PurePath(output_folder)
+        self._dataset = dataset
+        self._downscale_factor = downscale_factor
+        self._sample_count = sample_count
+        self._g_c = g_c
+        self._g_f = g_f
+
+    def save_plot(self, epoch: int):
         """
         A - rgb, fundus photograph
         B - binary, mask
@@ -60,71 +226,60 @@ class Visualizations:
         coarse/global - half scale data
         fine/local - original scale data
         """
-        N_PATCH = [1, 1, 1]
 
-        # GENERATE DATA
-        # REAL
-        [X_realA, X_realB, X_realC], _ = src.dataloader.generate_real_data_random(
-            dataset, n_samples, N_PATCH
-        )
-        # out_shape = np.array(X_realA.shape[1:2]) // 2
-        # out_shape = tuple(x for x in out_shape.tolist())
-        out_shape = (int(X_realA.shape[1] / 2), int(X_realA.shape[2] / 2))
-        [X_realA_half, X_realB_half, X_realC_half] = src.dataloader.resize(
-            X_realA, X_realB, X_realC, out_shape
-        )
-        # FAKE_COARSE
-        [X_fakeC_half, x_global], _ = src.dataloader.generate_fake_data_coarse(
-            g_global_model.model, X_realA_half, X_realB_half, N_PATCH
-        )
-        # FAKE_FINE
-        X_fakeC, _ = src.dataloader.generate_fake_data_fine(
-            g_local_model.model, X_realA, X_realB, x_global, N_PATCH
-        )
+        # EXTRACT DATA
+        PATCH_COUNTS = [1, 1]
+        self._g_c.model.trainable = False
+        self._g_f.model.trainable = False
+        data = self._dataset.get_random_sample_data(sample_count=self._sample_count)
+        [XA_fr, _, XC_fr] = data["X_fr"]
+        [XA_cr, _, XC_cr] = data["X_cr"]
+        XC_cx = data["XC_cx"]
+        XC_fx = data["XC_fx"]
 
         # SAVE PLOTS
         base_name = f"{epoch:0>5d}.png"
-        # FINE/LOCAL
-        # scale all pixels from [-1,1] to [0,1]
-        X_realA = (X_realA + 1) / 2.0
-        X_realC = (X_realC + 1) / 2.0
-        X_fakeC = (X_fakeC + 1) / 2.0  # type: ignore
-        for i in range(n_samples):
-            plt.subplot(3, n_samples, 1 + i)
+
+        # FINE
+        XA_fr = src.image_util.output_to_intensity(XA_fr)
+        XC_fr = src.image_util.output_to_intensity(XC_fr)
+        XC_fx = src.image_util.output_to_intensity(XC_fx)  # type: ignore
+        for i in range(self._sample_count):
+            plt.subplot(3, self._sample_count, 1 + i)
             plt.axis("off")
-            plt.imshow(X_realA[i])
-        for i in range(n_samples):
-            plt.subplot(3, n_samples, 1 + n_samples + i)
+            plt.imshow(XA_fr[i])
+        for i in range(self._sample_count):
+            plt.subplot(3, self._sample_count, 1 + self._sample_count + i)
             plt.axis("off")
-            twoD_img = X_fakeC[:, :, :, 0]
+            twoD_img = XC_fx[:, :, :, 0]
             plt.imshow(twoD_img[i], cmap="gray")
-        for i in range(n_samples):
-            plt.subplot(3, n_samples, 1 + n_samples * 2 + i)
+        for i in range(self._sample_count):
+            plt.subplot(3, self._sample_count, 1 + self._sample_count * 2 + i)
             plt.axis("off")
-            twoD_img = X_realC[:, :, :, 0]
+            twoD_img = XC_fr[:, :, :, 0]
             plt.imshow(twoD_img[i], cmap="gray")
         name = "_".join(["fine", base_name])
         file_path = self._folder / name
         plt.savefig(file_path)
         plt.close()
-        # COARSE/GLOBAL
-        # scale all pixels from [-1,1] to [0,1]
-        X_realA_half = (X_realA_half + 1) / 2.0
-        X_realC_half = (X_realC_half + 1) / 2.0
-        X_fakeC_half = (X_fakeC_half + 1) / 2.0  # type: ignore
-        for i in range(n_samples):
-            plt.subplot(3, n_samples, 1 + i)
+
+        # COARSE
+        XA_cr = src.image_util.output_to_intensity(XA_cr)  # type: ignore
+        XC_cr = src.image_util.output_to_intensity(XC_cr)  # type: ignore
+        XC_cx = src.image_util.output_to_intensity(XC_cx)  # type: ignore
+        for i in range(self._sample_count):
+            plt.subplot(3, self._sample_count, 1 + i)
             plt.axis("off")
-            plt.imshow(X_realA_half[i])
-        for i in range(n_samples):
-            plt.subplot(3, n_samples, 1 + n_samples + i)
+            plt.imshow(XA_cr[i])
+        for i in range(self._sample_count):
+            plt.subplot(3, self._sample_count, 1 + self._sample_count + i)
             plt.axis("off")
-            twoD_img = X_fakeC_half[:, :, :, 0]
+            twoD_img = XC_cx[:, :, :, 0]
             plt.imshow(twoD_img[i], cmap="gray")
-        for i in range(n_samples):
-            plt.subplot(3, n_samples, 1 + n_samples * 2 + i)
+        for i in range(self._sample_count):
+            plt.subplot(3, self._sample_count, 1 + self._sample_count * 2 + i)
             plt.axis("off")
-            twoD_img = X_realC_half[:, :, :, 0]
+            twoD_img = XC_cr[:, :, :, 0]
             plt.imshow(twoD_img[i], cmap="gray")
         name = "_".join(["coarse", base_name])
         file_path = self._folder / name

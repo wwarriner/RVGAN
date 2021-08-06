@@ -11,11 +11,15 @@
 module load Anaconda3
 conda activate retina-gan
 
-in="./train_data/stare_mini"
-out="./train_data/stare_mini_crop"
+name="stare_mini"
+
+config="./config.yaml"
+in="./train_data/${name}"
+out="./train_data/${name}_chunks"
+ext=".png"
 
 python -u preprocess.py \
+    --config_file "${config}" \
     --input_folder "${in}" \
     --output_folder "${out}" \
-    --input_dim 128 \
-    --stride 32
+    --image_extension "${ext}"

@@ -1,159 +1,152 @@
 import argparse
 import itertools
 from pathlib import Path, PurePath
-from typing import Callable, List, Tuple
+from typing import List
 
 import numpy as np
-from PIL import Image
+
+import src.file_util
+import src.image_util
+
+IMAGE_TYPES = ["image", "mask", "label"]
 
 
-def _pad_to_shape(a: np.ndarray, shape: tuple, *args, **kwargs) -> np.ndarray:
-    before = np.array(a.shape)
-    after = np.array(shape)
-    pad = after - before
-    pad = [(0, p) for p in pad]
-    return np.pad(a, pad_width=pad, *args, **kwargs)
+def _read_file_info(input_folder: PurePath, extension: str) -> dict:
+    file_info = {}
+    for image_type in IMAGE_TYPES:
+        files = list(Path(input_folder / image_type).glob(extension))
+        files = sorted(files)
+        file_info[image_type] = {"files": files, "out": output_folder}
+    return file_info
 
 
-def stride_crop(
-    image: np.ndarray, crop_size_px: Tuple[int, int], stride_px: int = 1
-) -> np.ndarray:
-    """
-    Inputs:
-    1. image - [M,N,...] ndarray representing a single image
-    2. crop_size - 2-ple of ints representing the size of output cropped images
-    3. stride - positive integer representing how many px to stride between
-        crops
-
-    Output:
-    crop - [K,M,N,...] ndarray representing a stack of K crops from image
-    """
-    crop_size_px = np.array(crop_size_px)
-    image_size_px = np.array(image.shape[0:2])
-    crop_counts = np.ceil(image_size_px / crop_size_px).astype(np.int64)  # type: ignore
-    target_px = crop_counts * crop_size_px
-    target_shape = [*(target_px.tolist()), *(image.shape[2:])]
-    image = _pad_to_shape(
-        a=image,
-        shape=target_shape,  # type: ignore
-        mode="constant",
-        constant_values=0,
-    )
-    crop_indices = [range(c) for c in crop_counts.tolist()]
-    crop_list = []
-    for crop_coords in itertools.product(*crop_indices):
-        crop_coords = np.array(crop_coords)
-        start = crop_coords * stride_px
-        end = start + crop_size_px
-        crop_list.append(image[start[0] : end[0], start[1] : end[1], ...])
-        # print(image[start[0] : end[0], start[1] : end[1], ...].shape)
-    crop = np.stack(crop_list, axis=0)
-    return crop  # type: ignore
+def _create_chunk_data(
+    file_info: dict, chunk_shape_px: np.ndarray, stride_px: np.ndarray
+) -> dict:
+    chunk_data = {}
+    for image_type, info in file_info.items():
+        files = info["files"]
+        print(f"Processing {image_type} with {len(files)} images")
+        chunk_data[image_type] = _chunk_image_files(
+            files=files, chunk_shape_px=chunk_shape_px, stride_px=stride_px,
+        )
+    _check_chunk_data(chunk_data=chunk_data)
+    return chunk_data
 
 
-def load_crops(
-    image_file: PurePath, crop_fn: Callable[[np.ndarray], np.ndarray],
-) -> np.ndarray:
-    image = np.array(Image.open(str(image_file)))
-    print(f"{str(image_file.name)} with shape {image.shape}")
-    crops = crop_fn(image)
-    return crops
+def _write_chunk_data(chunk_data: dict) -> None:
+    for image_type, chunks in chunk_data.items():
+        info = file_info[image_type]
+        _save_chunks(image_type=image_type, info=info, chunks=chunks)
 
 
-def crop_images(image_type: str, info: dict, crop_fn: Callable) -> List[np.ndarray]:
-    files = info["files"]
-    print(f"Processing {image_type} with {len(files)} images")
+def _write_npz_data(output_folder: PurePath, chunk_data: dict) -> None:
+    npz_file_path = output_folder / "image_data.npz"
+    stacked = {k: np.concatenate(v, axis=0) for k, v in chunk_data.items()}
+    out = [stacked[x] for x in IMAGE_TYPES]  # order matters
+    for i in range(len(out)):
+        stack = out[i]
+        if stack.ndim == 3:  # type: ignore
+            out[i] = stack[..., np.newaxis]  # type: ignore
+    [print(out[x].shape) for x in range(len(out))]  # type: ignore
+    np.savez_compressed(npz_file_path, *out)
+
+
+def _chunk_image_files(
+    files: list, chunk_shape_px: np.ndarray, stride_px: np.ndarray
+) -> List[np.ndarray]:
     all_crops = []
     for image_file in files:
-        crops = load_crops(image_file=image_file, crop_fn=crop_fn)
+        crops = _chunk_image_file(
+            image_file=image_file, chunk_shape_px=chunk_shape_px, stride_px=stride_px
+        )
         all_crops.append(crops)
     return all_crops
 
 
-def save_cropped_images(image_type: str, info: dict, cropped: List[np.ndarray]) -> None:
-    out_root = info["out"]
-    out_folder = out_root / image_type
-    Path(out_folder).mkdir(parents=True, exist_ok=True)
-    files = info["files"]
-    for image_file, crops in zip(files, cropped):
-        out_base_name = "_".join([image_file.stem, image_type])
-        save_crop_stack(
-            crops=crops, out_folder=out_folder, base_name=out_base_name, ext=".png",
-        )
-
-
-def save_crop_stack(
-    crops: np.ndarray, out_folder: PurePath, base_name: str, ext: str = ".png"
-) -> None:
-    for crop_index in range(crops.shape[0]):
-        name = "_".join([base_name, str(crop_index + 1)]) + ext
-        path = out_folder / name
-        crop = crops[crop_index, ...]
-        out = Image.fromarray(crop)
-        out.save(fp=str(path))
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--input_folder", type=str)
-    parser.add_argument("--output_folder", type=str)
-    parser.add_argument("--input_dim", type=int, default=128)
-    parser.add_argument("--stride", type=int, default=32)
-    args = parser.parse_args()
-
-    input_folder = PurePath(args.input_folder)
-    output_folder = PurePath(args.output_folder)
-    crop_size_px = (args.input_dim, args.input_dim)
-    stride_px = args.stride
-
-    GLOB = "*.png"
-    IMAGE_TYPES = ["image", "mask", "label"]
-
-    # build file info for looping
-    file_info = {}
-    for image_type in IMAGE_TYPES:
-        files = list(Path(input_folder / image_type).glob(GLOB))
-        files = sorted(files)
-        file_info[image_type] = {"files": files, "out": output_folder}
-
-    print("Cropping images")
-    crop_fn = lambda x: stride_crop(
-        image=x, crop_size_px=crop_size_px, stride_px=stride_px
+def _chunk_image_file(
+    image_file: PurePath, chunk_shape_px: np.ndarray, stride_px: np.ndarray
+) -> np.ndarray:
+    image = src.image_util.load_image(path=image_file)
+    print(f"{str(image_file.name)} with shape {image.shape}")
+    crops = src.image_util.image_to_chunks(
+        image=image, chunk_shape_px=chunk_shape_px, stride_px=stride_px
     )
-    crop_data = {}
-    for image_type, info in file_info.items():
-        crop_data[image_type] = crop_images(
-            image_type=image_type, info=info, crop_fn=crop_fn
-        )
+    return crops
 
-    print("Checking cropped data")
-    keys = crop_data.keys()
+
+def _check_chunk_data(chunk_data: dict) -> None:
+    keys = chunk_data.keys()
     gen = itertools.product(
         itertools.islice(keys, 0, 1), itertools.islice(keys, 1, None)
     )
     for first, other in gen:
-        lhs_shape = np.array(crop_data[first][0].shape[1:3])
-        rhs_shape = np.array(crop_data[other][0].shape[1:3])
+        lhs_shape = np.array(chunk_data[first][0].shape[1:3])
+        rhs_shape = np.array(chunk_data[other][0].shape[1:3])
         ok = np.all(lhs_shape == rhs_shape)
         if not ok:
             print(
                 f"Mismatched spatial shapes {first}-{lhs_shape} vs {other}-{rhs_shape}"
             )
 
-    print("Writing cropped images to disk")
-    for image_type, cropped in crop_data.items():
-        info = file_info[image_type]
-        save_cropped_images(image_type=image_type, info=info, cropped=cropped)
 
-    print("Writing npz to disk")
-    npz_file_path = output_folder / "image_data.npz"
-    stacked = {k: np.concatenate(v, axis=0) for k, v in crop_data.items()}
-    out = [stacked[x] for x in IMAGE_TYPES]  # order matters
-    for i in range(len(out)):
-        stack = out[i]
-        if stack.ndim == 3:
-            out[i] = stack[..., np.newaxis]
-    [print(out[x].shape) for x in range(len(out))]
-    np.savez_compressed(npz_file_path, *out)
+def _save_chunk_stack(
+    crops: np.ndarray, out_folder: PurePath, base_name: str, ext: str = ".png"
+) -> None:
+    for crop_index in range(crops.shape[0]):
+        name = "_".join([base_name, str(crop_index + 1)]) + ext
+        path = out_folder / name
+        crop = crops[crop_index, ...]
+        src.image_util.save_image(path=path, image=crop)
+
+
+def _save_chunks(image_type: str, info: dict, chunks: List[np.ndarray]) -> None:
+    out_root = info["out"]
+    out_folder = out_root / image_type
+    Path(out_folder).mkdir(parents=True, exist_ok=True)
+    files = info["files"]
+    for image_file, crops in zip(files, chunks):
+        out_base_name = "_".join([image_file.stem, image_type])
+        _save_chunk_stack(
+            crops=crops, out_folder=out_folder, base_name=out_base_name, ext=".png",
+        )
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input_folder", type=str, required=True)
+    parser.add_argument("--output_folder", type=str, required=True)
+    parser.add_argument("--config_file", type=str, default="config.yaml")
+    parser.add_argument("--image_extension", type=str, default=".png")
+    args = parser.parse_args()
+
+    input_folder = PurePath(args.input_folder)
+    assert src.file_util.check_folder(input_folder)
+
+    output_folder = PurePath(args.output_folder)
+    # no check, this gets created
+
+    config_file = PurePath(args.config_file)
+    assert src.file_util.check_file(config_file)
+
+    config = src.file_util.read_yaml(path=config_file)
+    chunk_shape_px = np.array(config["arch"]["input_size"])
+    stride_px = np.array(config["preprocess"]["stride"])
+
+    image_extension = src.file_util.fix_ext(args.image_extension)
+
+    print("Getting file information")
+    file_info = _read_file_info(input_folder=input_folder, extension=image_extension)
+
+    print("Chunking images")
+    chunk_data = _create_chunk_data(
+        file_info=file_info, chunk_shape_px=chunk_shape_px, stride_px=stride_px
+    )
+
+    print("Writing chunks as images")
+    _write_chunk_data(chunk_data=chunk_data)
+
+    print("Writing npz file")
+    _write_npz_data(output_folder=output_folder, chunk_data=chunk_data)
 
     print("Done")
