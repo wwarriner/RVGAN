@@ -14,12 +14,12 @@ This code is for our paper "RV-GAN: Segmenting Retinal Vascular Structure inFund
 https://arxiv.org/pdf/2101.00535v2.pdf
 ```
 
-# Citation 
+# Citation
 ```
 @article{kamran2021rv,
   title={RV-GAN: Segmenting Retinal Vascular Structure in Fundus Photographs using a Novel Multi-scale Generative Adversarial Network},
   author={Kamran, Sharif Amit and Hossain, Khondker Fariha and Tavakkoli, Alireza and Zuckerbrod, Stewart Lee and Sanders, Kenton M and Baker, Salah A},
-  journal={arXiv preprint arXiv:2101.00535v2}, 
+  journal={arXiv preprint arXiv:2101.00535v2},
   year={2021}
 }
 ```
@@ -110,7 +110,7 @@ https://blogs.kingston.ac.uk/retinal/chasedb1/
 
 ### Dataset Pre-processing
 
-- Type this in terminal to run the **strided_crop_DRIVE.py**, **strided_crop_STARE.py** or **strided_crop_CHASE.py** file. 
+- Type this in terminal to run the **strided_crop_DRIVE.py**, **strided_crop_STARE.py** or **strided_crop_CHASE.py** file.
 ```
 python3 strided_crop_DRIVE.py --input_dim=128 --stride=32
 ```
@@ -121,7 +121,7 @@ python3 strided_crop_DRIVE.py --input_dim=128 --stride=32
 ```
 
 ### NPZ file conversion
-- Convert all the images to npz format using **convert_npz_DRIVE.py**, **convert_npz_STARE.py** or **convert_npz_CHASE.py** file. 
+- Convert all the images to npz format using **convert_npz_DRIVE.py**, **convert_npz_STARE.py** or **convert_npz_CHASE.py** file.
 ```
 python3 convert_npz_DRIVE.py --input_dim=(128,128) --n_crops=210 --outfile_name='DRIVE'
 ```
@@ -154,3 +154,16 @@ python3 train.py --npz_file=DRIVE --batch=4 --epochs=200 --savedir=RVGAN --resum
 The code is released under the BSD 3-Clause License, you can read the license file included in the repository for details.
 
 ## Work in Progress
+
+
+## Variable Naming Conventions
+
+- `A` is RGB image data
+- `B` is binary mask data
+- `C` is binary label data
+- `d_` for discriminator
+- `g_` for generator
+- `_c` for coarse (aka global)
+- `_f` for fine (aka local)
+- `_.r` for real (`_cr` or `_fr`)
+- `_.x` for fake (`_cx` or `_fx`)

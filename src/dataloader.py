@@ -6,6 +6,21 @@ from pathlib import PurePath
 import src.image_util
 
 
+# A is RGB image data
+# B is binary mask data
+# C is binary label data
+
+# d_ = discriminator
+# g_ = generator
+# _c = coarse
+# _f = fine
+
+# _fr = fine real
+# _cr = coarse real
+# _fx = fine fake
+# _cx = coarse fake
+
+
 def load_real_data(path: PurePath):
     data = np.load(path)
     XA_fr = data["arr_0"]  # type: ignore
