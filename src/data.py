@@ -38,17 +38,23 @@ class ModelFile:
 
 
 class Visualizations:
-    def __init__(self, output_folder: PathLike):
-        self._folder = PurePath(output_folder)
-
-    def save_plot(
+    def __init__(
         self,
-        epoch: int,
-        g_global_model: ModelFile,
-        g_local_model: ModelFile,
+        output_folder: PathLike,
         dataset,
-        n_samples=3,
+        downscale_factor: int,
+        sample_count: int,
+        g_c: ModelFile,
+        g_f: ModelFile,
     ):
+        self._folder = PurePath(output_folder)
+        self._dataset = dataset
+        self._downscale_factor = downscale_factor
+        self._sample_count = sample_count
+        self._g_c = g_c
+        self._g_f = g_f
+
+    def save_plot(self, epoch: int):
         """
         A - rgb, fundus photograph
         B - binary, mask
@@ -60,76 +66,71 @@ class Visualizations:
         coarse/global - half scale data
         fine/local - original scale data
         """
-        N_PATCH = [1, 1, 1]
 
-        # GENERATE DATA
-        # REAL
-        (
-            [X_realA_fine, X_realB_fine, X_realC_fine],
-            _,
-        ) = src.dataloader.generate_real_data_random(dataset, n_samples, N_PATCH)
-        out_shape_space_px = src.image_util.downscale_shape_space_px(
-            in_shape_space_px=X_realA_fine.shape[1:3], factor=2  # TODO magic value
+        # EXTRACT DATA
+        PATCH_COUNTS = [1, 1]
+        self._g_c.model.trainable = False
+        self._g_f.model.trainable = False
+        real_data_generator = lambda: src.dataloader.generate_fr_random(
+            dataset=self._dataset,
+            sample_count=self._sample_count,
+            patch_counts=PATCH_COUNTS,
         )
-        X_realA_coarse = src.image_util.resize_stack(
-            stack=X_realA_fine, out_shape_space_px=out_shape_space_px
+        cycled_data = src.dataloader.cycle_data(
+            real_data_generator=real_data_generator,
+            downscale_factor=self._downscale_factor,
+            patch_counts=PATCH_COUNTS,
+            g_c_arch=self._g_c.model,
+            g_f_arch=self._g_f.model,
         )
-        X_realB_coarse = src.image_util.resize_stack(
-            stack=X_realB_fine, out_shape_space_px=out_shape_space_px
-        )
-        X_realC_coarse = src.image_util.resize_stack(
-            stack=X_realC_fine, out_shape_space_px=out_shape_space_px
-        )
-        # FAKE_COARSE
-        [X_fakeC_coarse, x_global], _ = src.dataloader.generate_fake_data_coarse(
-            g_global_model.model, X_realA_coarse, X_realB_coarse, N_PATCH
-        )
-        # FAKE_FINE
-        X_fakeC_fine, _ = src.dataloader.generate_fake_data_fine(
-            g_local_model.model, X_realA_fine, X_realB_fine, x_global, N_PATCH
-        )
+        [XA_fr, _, XC_fr] = cycled_data["X_fr"]
+        [XA_cr, _, XC_cr] = cycled_data["X_cr"]
+        XC_cx = cycled_data["XC_cx"]
+        XC_fx = cycled_data["XC_fx"]
 
         # SAVE PLOTS
         base_name = f"{epoch:0>5d}.png"
-        # FINE/LOCAL
-        X_realA_fine = src.image_util.output_to_intensity(X_realA_fine)
-        X_realC_fine = src.image_util.output_to_intensity(X_realC_fine)
-        X_fakeC_fine = src.image_util.output_to_intensity(X_fakeC_fine)  # type: ignore
-        for i in range(n_samples):
-            plt.subplot(3, n_samples, 1 + i)
+
+        # FINE
+        XA_fr = src.image_util.output_to_intensity(XA_fr)
+        XC_fr = src.image_util.output_to_intensity(XC_fr)
+        XC_fx = src.image_util.output_to_intensity(XC_fx)  # type: ignore
+        for i in range(self._sample_count):
+            plt.subplot(3, self._sample_count, 1 + i)
             plt.axis("off")
-            plt.imshow(X_realA_fine[i])
-        for i in range(n_samples):
-            plt.subplot(3, n_samples, 1 + n_samples + i)
+            plt.imshow(XA_fr[i])
+        for i in range(self._sample_count):
+            plt.subplot(3, self._sample_count, 1 + self._sample_count + i)
             plt.axis("off")
-            twoD_img = X_fakeC_fine[:, :, :, 0]
+            twoD_img = XC_fx[:, :, :, 0]
             plt.imshow(twoD_img[i], cmap="gray")
-        for i in range(n_samples):
-            plt.subplot(3, n_samples, 1 + n_samples * 2 + i)
+        for i in range(self._sample_count):
+            plt.subplot(3, self._sample_count, 1 + self._sample_count * 2 + i)
             plt.axis("off")
-            twoD_img = X_realC_fine[:, :, :, 0]
+            twoD_img = XC_fr[:, :, :, 0]
             plt.imshow(twoD_img[i], cmap="gray")
         name = "_".join(["fine", base_name])
         file_path = self._folder / name
         plt.savefig(file_path)
         plt.close()
-        # COARSE/GLOBAL
-        X_realA_coarse = src.image_util.output_to_intensity(X_realA_coarse)  # type: ignore
-        X_realC_coarse = src.image_util.output_to_intensity(X_realC_coarse)  # type: ignore
-        X_fakeC_coarse = src.image_util.output_to_intensity(X_fakeC_coarse)  # type: ignore
-        for i in range(n_samples):
-            plt.subplot(3, n_samples, 1 + i)
+
+        # COARSE
+        XA_cr = src.image_util.output_to_intensity(XA_cr)  # type: ignore
+        XC_cr = src.image_util.output_to_intensity(XC_cr)  # type: ignore
+        XC_cx = src.image_util.output_to_intensity(XC_cx)  # type: ignore
+        for i in range(self._sample_count):
+            plt.subplot(3, self._sample_count, 1 + i)
             plt.axis("off")
-            plt.imshow(X_realA_coarse[i])
-        for i in range(n_samples):
-            plt.subplot(3, n_samples, 1 + n_samples + i)
+            plt.imshow(XA_cr[i])
+        for i in range(self._sample_count):
+            plt.subplot(3, self._sample_count, 1 + self._sample_count + i)
             plt.axis("off")
-            twoD_img = X_fakeC_coarse[:, :, :, 0]
+            twoD_img = XC_cx[:, :, :, 0]
             plt.imshow(twoD_img[i], cmap="gray")
-        for i in range(n_samples):
-            plt.subplot(3, n_samples, 1 + n_samples * 2 + i)
+        for i in range(self._sample_count):
+            plt.subplot(3, self._sample_count, 1 + self._sample_count * 2 + i)
             plt.axis("off")
-            twoD_img = X_realC_coarse[:, :, :, 0]
+            twoD_img = XC_cr[:, :, :, 0]
             plt.imshow(twoD_img[i], cmap="gray")
         name = "_".join(["coarse", base_name])
         file_path = self._folder / name

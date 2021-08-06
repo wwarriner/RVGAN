@@ -10,18 +10,16 @@ import src.file_util
 import src.image_util
 import src.model
 
-# TODO GLOBAL rename to FINE
-# TODO LOCAL rename to COARSE
-
 
 def eval(
-    g_global_model: src.data.ModelFile,
-    g_local_model: src.data.ModelFile,
     image_chunks: np.ndarray,
     mask_chunks: np.ndarray,
+    downscale_factor: int,
+    g_c: src.data.ModelFile,
+    g_f: src.data.ModelFile,
 ) -> np.ndarray:
     coarse_shape_space_px = src.image_util.downscale_shape_space_px(
-        in_shape_space_px=image_chunks.shape[1:3], factor=2  # TODO magic number
+        in_shape_space_px=image_chunks.shape[1:3], factor=downscale_factor
     )
     image_chunks_coarse = src.image_util.resize_stack(
         stack=image_chunks, out_shape_space_px=coarse_shape_space_px
@@ -30,12 +28,19 @@ def eval(
         stack=mask_chunks, out_shape_space_px=coarse_shape_space_px
     )
 
-    N_PATCH = [1, 1]
-    [_, x_global], _ = src.dataloader.generate_fake_data_coarse(
-        g_local_model.model, image_chunks_coarse, mask_chunks_coarse, N_PATCH,
+    patch_counts = [1, 1]
+    [_, weights_c_to_f], _ = src.dataloader.generate_cx(
+        g_c_arch=g_c.model,
+        XA_cr=image_chunks_coarse,
+        XB_cr=mask_chunks_coarse,
+        patch_counts=patch_counts,
     )
-    out, _ = src.dataloader.generate_fake_data_fine(
-        g_global_model.model, image_chunks, mask_chunks, x_global, N_PATCH
+    out, _ = src.dataloader.generate_fx(
+        g_f_arch=g_f.model,
+        XA_fr=image_chunks,
+        XB_fr=mask_chunks,
+        weights_c_to_f=weights_c_to_f,
+        patch_counts=patch_counts,
     )
     return out  # type: ignore
 
@@ -75,17 +80,13 @@ if __name__ == "__main__":
         input_size=input_shape_px, downscale_factor=downscale_factor
     )
 
-    g_model_fine = arch_factory.build_generator(scale_type="fine")
-    g_fine_file = src.data.ModelFile(
-        name="global_model", folder=model_folder, arch=g_model_fine
-    )
-    g_fine_file.load(version="latest")
+    g_c_arch = arch_factory.build_generator(scale_type="coarse")
+    g_c = src.data.ModelFile(name="coarse_model", folder=model_folder, arch=g_c_arch)
+    g_c.load(version="latest")
 
-    g_model_coarse = arch_factory.build_generator(scale_type="coarse")
-    g_coarse_file = src.data.ModelFile(
-        name="local_model", folder=model_folder, arch=g_model_coarse
-    )
-    g_coarse_file.load(version="latest")
+    g_f_arch = arch_factory.build_generator(scale_type="fine")
+    g_f = src.data.ModelFile(name="fine_model", folder=model_folder, arch=g_f_arch)
+    g_f.load(version="latest")
 
     # LOAD AND PROCESS IMAGES
     print("evaluating...")
@@ -111,10 +112,11 @@ if __name__ == "__main__":
         )
 
         label_chunks = eval(
-            g_global_model=g_fine_file,
-            g_local_model=g_coarse_file,
             image_chunks=image_chunks,
             mask_chunks=mask_chunks,
+            downscale_factor=downscale_factor,
+            g_c=g_c,
+            g_f=g_f,
         )
 
         image_shape_space_px = src.image_util.get_shape_space_px(image=image)
