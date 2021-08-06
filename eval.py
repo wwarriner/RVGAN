@@ -26,14 +26,12 @@ def eval(
         stack=mask_chunks, out_shape_space_px=coarse_shape_space_px
     )
 
-    # GLOBAL IS FINE
-    # LOCAL IS COARSE
-
+    N_PATCH = [1, 1]
     [_, x_global], _ = src.dataloader.generate_fake_data_coarse(
-        g_local_model.model, image_chunks_coarse, mask_chunks_coarse, [1, 1],
+        g_local_model.model, image_chunks_coarse, mask_chunks_coarse, N_PATCH,
     )
     out, _ = src.dataloader.generate_fake_data_fine(
-        g_global_model.model, image_chunks, mask_chunks, x_global, [1, 1]
+        g_global_model.model, image_chunks, mask_chunks, x_global, N_PATCH
     )
     return out  # type: ignore
 
