@@ -16,7 +16,7 @@ conda activate retina-gan
 name="stare_mini"
 
 config="./config.yaml"
-npz="./train_data/${name}_crop/image_data.npz"
+npz="./train_data/${name}_chunks/image_data.npz"
 save="./out/${name}"
 
 python -u train.py \
