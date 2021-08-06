@@ -29,9 +29,10 @@ def output_to_intensity(image: np.ndarray) -> np.ndarray:
     return image
 
 
-def output_to_binary(image: np.ndarray) -> np.ndarray:
+def output_to_binary(image: np.ndarray, threshold: float = 0.5) -> np.ndarray:
     image = image.copy()
     image = (image + 1.0) / 2.0  # type: ignore
+    image = image > threshold  # type: ignore
     image = image.astype(np.bool)
     return image
 
