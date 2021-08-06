@@ -5,15 +5,16 @@ from typing import List
 
 import numpy as np
 
+import src.file_util
 import src.image_util
 
-# TODO add yaml config
+IMAGE_TYPES = ["image", "mask", "label"]
 
 
-def _read_file_info(input_folder: PurePath) -> dict:
+def _read_file_info(input_folder: PurePath, extension: str) -> dict:
     file_info = {}
     for image_type in IMAGE_TYPES:
-        files = list(Path(input_folder / image_type).glob(GLOB))
+        files = list(Path(input_folder / image_type).glob(extension))
         files = sorted(files)
         file_info[image_type] = {"files": files, "out": output_folder}
     return file_info
@@ -113,22 +114,29 @@ def _save_chunks(image_type: str, info: dict, chunks: List[np.ndarray]) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input_folder", type=str)
-    parser.add_argument("--output_folder", type=str)
-    parser.add_argument("--input_dim", type=int, default=128)
-    parser.add_argument("--stride", type=int, default=32)
+    parser.add_argument("--input_folder", type=str, required=True)
+    parser.add_argument("--output_folder", type=str, required=True)
+    parser.add_argument("--config_file", type=str, default="config.yaml")
+    parser.add_argument("--image_extension", type=str, default=".png")
     args = parser.parse_args()
 
     input_folder = PurePath(args.input_folder)
-    output_folder = PurePath(args.output_folder)
-    chunk_shape_px = np.array((args.input_dim, args.input_dim))
-    stride_px = np.array((args.stride, args.stride))
+    assert src.file_util.check_folder(input_folder)
 
-    GLOB = "*.png"
-    IMAGE_TYPES = ["image", "mask", "label"]
+    output_folder = PurePath(args.output_folder)
+    # no check, this gets created
+
+    config_file = PurePath(args.config_file)
+    assert src.file_util.check_file(config_file)
+
+    config = src.file_util.read_yaml(path=config_file)
+    chunk_shape_px = np.array(config["arch"]["input_size"])
+    stride_px = np.array(config["preprocess"]["stride"])
+
+    image_extension = src.file_util.fix_ext(args.image_extension)
 
     print("Getting file information")
-    file_info = _read_file_info(input_folder=input_folder)
+    file_info = _read_file_info(input_folder=input_folder, extension=image_extension)
 
     print("Chunking images")
     chunk_data = _create_chunk_data(
