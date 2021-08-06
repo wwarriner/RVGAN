@@ -77,7 +77,7 @@ if __name__ == "__main__":
     # LOAD MODELS
     print("loading models...")
     arch_factory = src.model.ArchFactory(
-        input_size=input_shape_px, downscale_factor=downscale_factor
+        input_shape_px=input_shape_px, downscale_factor=downscale_factor
     )
 
     g_c_arch = arch_factory.build_generator(scale_type="coarse")

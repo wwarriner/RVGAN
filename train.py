@@ -216,7 +216,7 @@ if __name__ == "__main__":
     print("Loaded", dataset[0].shape, dataset[1].shape)
 
     arch_factory = src.model.ArchFactory(
-        input_size=input_shape_px, downscale_factor=downscale_factor,
+        input_shape_px=input_shape_px, downscale_factor=downscale_factor,
     )
 
     d_f_arch = arch_factory.build_discriminator(scale_type="fine", name="D1")
