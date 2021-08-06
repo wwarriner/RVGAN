@@ -10,6 +10,47 @@ import src.image_util
 # TODO add yaml config
 
 
+def _read_file_info(input_folder: PurePath) -> dict:
+    file_info = {}
+    for image_type in IMAGE_TYPES:
+        files = list(Path(input_folder / image_type).glob(GLOB))
+        files = sorted(files)
+        file_info[image_type] = {"files": files, "out": output_folder}
+    return file_info
+
+
+def _create_chunk_data(
+    file_info: dict, chunk_shape_px: np.ndarray, stride_px: np.ndarray
+) -> dict:
+    chunk_data = {}
+    for image_type, info in file_info.items():
+        files = info["files"]
+        print(f"Processing {image_type} with {len(files)} images")
+        chunk_data[image_type] = _chunk_image_files(
+            files=files, chunk_shape_px=chunk_shape_px, stride_px=stride_px,
+        )
+    _check_chunk_data(chunk_data=chunk_data)
+    return chunk_data
+
+
+def _write_chunk_data(chunk_data: dict) -> None:
+    for image_type, chunks in chunk_data.items():
+        info = file_info[image_type]
+        _save_chunks(image_type=image_type, info=info, chunks=chunks)
+
+
+def _write_npz_data(output_folder: PurePath, chunk_data: dict) -> None:
+    npz_file_path = output_folder / "image_data.npz"
+    stacked = {k: np.concatenate(v, axis=0) for k, v in chunk_data.items()}
+    out = [stacked[x] for x in IMAGE_TYPES]  # order matters
+    for i in range(len(out)):
+        stack = out[i]
+        if stack.ndim == 3:  # type: ignore
+            out[i] = stack[..., np.newaxis]  # type: ignore
+    [print(out[x].shape) for x in range(len(out))]  # type: ignore
+    np.savez_compressed(npz_file_path, *out)
+
+
 def _chunk_image_files(
     files: list, chunk_shape_px: np.ndarray, stride_px: np.ndarray
 ) -> List[np.ndarray]:
@@ -31,6 +72,21 @@ def _chunk_image_file(
         image=image, chunk_shape_px=chunk_shape_px, stride_px=stride_px
     )
     return crops
+
+
+def _check_chunk_data(chunk_data: dict) -> None:
+    keys = chunk_data.keys()
+    gen = itertools.product(
+        itertools.islice(keys, 0, 1), itertools.islice(keys, 1, None)
+    )
+    for first, other in gen:
+        lhs_shape = np.array(chunk_data[first][0].shape[1:3])
+        rhs_shape = np.array(chunk_data[other][0].shape[1:3])
+        ok = np.all(lhs_shape == rhs_shape)
+        if not ok:
+            print(
+                f"Mismatched spatial shapes {first}-{lhs_shape} vs {other}-{rhs_shape}"
+            )
 
 
 def _save_chunk_stack(
@@ -71,49 +127,18 @@ if __name__ == "__main__":
     GLOB = "*.png"
     IMAGE_TYPES = ["image", "mask", "label"]
 
-    # build file info for looping
-    file_info = {}
-    for image_type in IMAGE_TYPES:
-        files = list(Path(input_folder / image_type).glob(GLOB))
-        files = sorted(files)
-        file_info[image_type] = {"files": files, "out": output_folder}
+    print("Getting file information")
+    file_info = _read_file_info(input_folder=input_folder)
 
     print("Chunking images")
-    chunk_data = {}
-    for image_type, info in file_info.items():
-        files = info["files"]
-        print(f"Processing {image_type} with {len(files)} images")
-        chunk_data[image_type] = _chunk_image_files(
-            files=files, chunk_shape_px=chunk_shape_px, stride_px=stride_px,
-        )
-
-    keys = chunk_data.keys()
-    gen = itertools.product(
-        itertools.islice(keys, 0, 1), itertools.islice(keys, 1, None)
+    chunk_data = _create_chunk_data(
+        file_info=file_info, chunk_shape_px=chunk_shape_px, stride_px=stride_px
     )
-    for first, other in gen:
-        lhs_shape = np.array(chunk_data[first][0].shape[1:3])
-        rhs_shape = np.array(chunk_data[other][0].shape[1:3])
-        ok = np.all(lhs_shape == rhs_shape)
-        if not ok:
-            print(
-                f"Mismatched spatial shapes {first}-{lhs_shape} vs {other}-{rhs_shape}"
-            )
 
     print("Writing chunks as images")
-    for image_type, chunks in chunk_data.items():
-        info = file_info[image_type]
-        _save_chunks(image_type=image_type, info=info, chunks=chunks)
+    _write_chunk_data(chunk_data=chunk_data)
 
     print("Writing npz file")
-    npz_file_path = output_folder / "image_data.npz"
-    stacked = {k: np.concatenate(v, axis=0) for k, v in chunk_data.items()}
-    out = [stacked[x] for x in IMAGE_TYPES]  # order matters
-    for i in range(len(out)):
-        stack = out[i]
-        if stack.ndim == 3:  # type: ignore
-            out[i] = stack[..., np.newaxis]  # type: ignore
-    [print(out[x].shape) for x in range(len(out))]  # type: ignore
-    np.savez_compressed(npz_file_path, *out)
+    _write_npz_data(output_folder=output_folder, chunk_data=chunk_data)
 
     print("Done")
