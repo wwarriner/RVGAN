@@ -13,10 +13,12 @@ module load cuda10.1/toolkit/10.1.243
 module load Anaconda3
 conda activate retina-gan
 
+name="stare"
+
 config="./config.yaml"
-save="./save/stare"
-input="./train_data/stare"
-output="./eval/stare"
+model="./out/${name}"
+input="./train_data/${name}"
+output="./eval/${name}"
 
 python -u eval.py \
     --config_file="${config}" \

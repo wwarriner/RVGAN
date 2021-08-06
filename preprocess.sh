@@ -11,9 +11,13 @@
 module load Anaconda3
 conda activate retina-gan
 
+config="./config.yaml"
 in="./train_data/stare_mini"
 out="./train_data/stare_mini_crop"
+ext=".png"
 
 python -u preprocess.py \
+    --config_file "${config}" \
     --input_folder "${in}" \
-    --output_folder "${out}"
+    --output_folder "${out}" \
+    --image_extension "${ext}"
