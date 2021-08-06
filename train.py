@@ -8,6 +8,7 @@ import yaml
 
 import src.data
 import src.dataloader
+import src.file_util
 import src.image_util
 import src.model
 
@@ -221,39 +222,43 @@ def _coarsen_fine_stacks(X_realA, X_realB, X_realC, out_shape_space_px):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--npz_file", type=str, help="path/to/npz/file",
+        "--npz_file", type=str, required=True, help="path/to/npz/file",
     )
     parser.add_argument(
         "--savedir",
         type=str,
-        required=False,
+        required=True,
         help="path/to/save_directory",
         default="RVGAN",
     )
-    parser.add_argument(
-        "--resume_training",
-        type=str,
-        required=False,
-        default="no",
-        choices=["yes", "no"],
-    )
+    parser.add_argument("--resume_training", action="store_true")
+    parser.add_argument("--config_file", type=str, default="config.yaml")
     args = parser.parse_args()
 
-    with open("config.yaml") as f:
-        config = yaml.safe_load(f)
-    input_file = PurePath(args.npz_file)
+    input_npz_file = PurePath(args.npz_file)
+    assert src.file_util.check_file(input_npz_file)
+
     output_folder = PurePath(args.savedir)
     Path(output_folder).mkdir(parents=True, exist_ok=True)
 
-    K.clear_session()
-    gc.collect()
-    dataset = src.dataloader.load_real_data(input_file)
+    config_file = PurePath(args.config_file)
+    assert src.file_util.check_file(config_file)
+
+    resume_training = args.resume_training
+
+    config = src.file_util.read_yaml(path=config_file)
+    input_shape_px = config["arch"]["input_size"]
+    downscale_factor = config["arch"]["downscale_factor"]
+    inner_weight = config["arch"]["inner_weight"]
+    epoch_count = config["train"]["epochs"]
+    batch_size = config["train"]["batch_size"]
+    patch_counts = config["train"]["patch_counts"]
+
+    dataset = src.dataloader.load_real_data(filename=input_npz_file)
     print("Loaded", dataset[0].shape, dataset[1].shape)
 
-    # define input shape based on the loaded dataset
     arch_factory = src.model.ArchFactory(
-        input_size=config["arch"]["input_size"],
-        downscale_factor=config["arch"]["downscale_factor"],
+        input_size=input_shape_px, downscale_factor=downscale_factor,
     )
 
     d_model1 = arch_factory.build_discriminator(scale_type="fine", name="D1")
@@ -281,7 +286,7 @@ if __name__ == "__main__":
         d_fine=d_model1,
         g_coarse=g_model_coarse,
         g_fine=g_model_fine,
-        inner_weight=config["arch"]["inner_weight"],
+        inner_weight=inner_weight,
     )
     rvgan_file = src.data.ModelFile(
         name="rvgan_model", folder=output_folder, arch=rvgan_model
@@ -290,12 +295,13 @@ if __name__ == "__main__":
     stats = src.data.Statistics(output_folder=output_folder)
     vis = src.data.Visualizations(output_folder=output_folder)
 
-    if args.resume_training == "yes":
-        d1_file.load(version="latest")
-        d2_file.load(version="latest")
-        g_coarse_file.load(version="latest")
-        g_fine_file.load(version="latest")
-        rvgan_file.load(version="latest")
+    if args.resume_training:
+        VERSION = "latest"
+        d1_file.load(version=VERSION)
+        d2_file.load(version=VERSION)
+        g_coarse_file.load(version=VERSION)
+        g_fine_file.load(version=VERSION)
+        rvgan_file.load(version=VERSION)
         stats.load()
 
     train(
@@ -307,8 +313,8 @@ if __name__ == "__main__":
         stats,
         vis,
         dataset,
-        n_epochs=config["train"]["epochs"],
-        n_batch=config["train"]["batch_size"],
-        n_patch=config["train"]["patch_counts"],
+        n_epochs=epoch_count,
+        n_batch=batch_size,
+        n_patch=patch_counts,
     )
     print("Training complete")
