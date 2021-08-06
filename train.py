@@ -13,10 +13,11 @@ import src.image_util
 import src.model
 
 
-def batch_update(
+def _batch_update(
     batch: int,
     n_batch: int,
     n_patch: List[int],
+    downscale_factor: int,
     d_model1: src.data.ModelFile,
     d_model2: src.data.ModelFile,
     g_global_model: src.data.ModelFile,
@@ -38,7 +39,9 @@ def batch_update(
         )
 
         # generate a batch of fake samples for Coarse Generator
-        out_shape_space_px = (int(X_realA.shape[1] / 2), int(X_realA.shape[2] / 2))
+        out_shape_space_px = src.image_util.downscale_shape_space_px(
+            in_shape_space_px=X_realA.shape[1:2], factor=downscale_factor
+        )
         [X_realA_half, X_realB_half, X_realC_half] = _coarsen_fine_stacks(
             X_realA, X_realB, X_realC, out_shape_space_px=out_shape_space_px
         )
@@ -162,9 +165,9 @@ def train(
     statistics: src.data.Statistics,
     vis: src.data.Visualizations,
     dataset,
-    n_epochs=20,
-    n_batch=1,
-    n_patch=[64, 32],
+    n_epochs: int,
+    n_batch: int,
+    n_patch: List[int],
 ):
     trainA, _, _ = dataset
     bat_per_epo = int(len(trainA) / n_batch)
@@ -173,10 +176,11 @@ def train(
 
     for epoch in range(start_epoch, n_epochs):
         for batch in range(bat_per_epo):
-            batch_losses = batch_update(
-                batch,
+            batch_losses = _batch_update(
+                batch=batch,
                 n_batch=n_batch,
                 n_patch=n_patch,
+                downscale_factor=downscale_factor,
                 d_model1=d_model1,
                 d_model2=d_model2,
                 g_global_model=g_global_model,
