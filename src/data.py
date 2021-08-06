@@ -4,29 +4,12 @@ from typing import Union
 
 import keras.models
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 
 import src.dataloader
-
-from PIL import Image
+import src.image_util
 
 PathLike = Union[Path, PurePath, str]
-
-
-def load_image(path: PathLike) -> np.ndarray:
-    image = Image.open(str(path))
-    image = np.array(image)
-    if image.ndim == 2:
-        image = image[..., np.newaxis]
-    return image
-
-
-def save_image(path: PathLike, image: np.ndarray) -> None:
-    if image.shape[-1] == 1:
-        image = image[..., 0]
-    out = Image.fromarray(image)
-    out.save(str(path))
 
 
 class ModelFile:
@@ -85,18 +68,17 @@ class Visualizations:
             [X_realA_fine, X_realB_fine, X_realC_fine],
             _,
         ) = src.dataloader.generate_real_data_random(dataset, n_samples, N_PATCH)
-        out_shape_space = (
-            int(X_realA_fine.shape[1] / 2),  # TODO magic value
-            int(X_realA_fine.shape[2] / 2),
-        )  # TODO abstract this
-        X_realA_coarse = src.dataloader.resize_stack(
-            data=X_realA_fine, out_shape_space=out_shape_space
+        out_shape_space_px = src.image_util.downscale_shape_space_px(
+            in_shape_space_px=X_realA_fine.shape[1:3], factor=2  # TODO magic value
         )
-        X_realB_coarse = src.dataloader.resize_stack(
-            data=X_realB_fine, out_shape_space=out_shape_space
+        X_realA_coarse = src.image_util.resize_stack(
+            stack=X_realA_fine, out_shape_space_px=out_shape_space_px
         )
-        X_realC_coarse = src.dataloader.resize_stack(
-            data=X_realC_fine, out_shape_space=out_shape_space
+        X_realB_coarse = src.image_util.resize_stack(
+            stack=X_realB_fine, out_shape_space_px=out_shape_space_px
+        )
+        X_realC_coarse = src.image_util.resize_stack(
+            stack=X_realC_fine, out_shape_space_px=out_shape_space_px
         )
         # FAKE_COARSE
         [X_fakeC_coarse, x_global], _ = src.dataloader.generate_fake_data_coarse(
@@ -110,9 +92,9 @@ class Visualizations:
         # SAVE PLOTS
         base_name = f"{epoch:0>5d}.png"
         # FINE/LOCAL
-        X_realA_fine = src.dataloader.output_to_intensity(X_realA_fine)
-        X_realC_fine = src.dataloader.output_to_intensity(X_realC_fine)
-        X_fakeC_fine = src.dataloader.output_to_intensity(X_fakeC_fine)  # type: ignore
+        X_realA_fine = src.image_util.output_to_intensity(X_realA_fine)
+        X_realC_fine = src.image_util.output_to_intensity(X_realC_fine)
+        X_fakeC_fine = src.image_util.output_to_intensity(X_fakeC_fine)  # type: ignore
         for i in range(n_samples):
             plt.subplot(3, n_samples, 1 + i)
             plt.axis("off")
@@ -132,9 +114,9 @@ class Visualizations:
         plt.savefig(file_path)
         plt.close()
         # COARSE/GLOBAL
-        X_realA_coarse = src.dataloader.output_to_intensity(X_realA_coarse)  # type: ignore
-        X_realC_coarse = src.dataloader.output_to_intensity(X_realC_coarse)  # type: ignore
-        X_fakeC_coarse = src.dataloader.output_to_intensity(X_fakeC_coarse)  # type: ignore
+        X_realA_coarse = src.image_util.output_to_intensity(X_realA_coarse)  # type: ignore
+        X_realC_coarse = src.image_util.output_to_intensity(X_realC_coarse)  # type: ignore
+        X_fakeC_coarse = src.image_util.output_to_intensity(X_fakeC_coarse)  # type: ignore
         for i in range(n_samples):
             plt.subplot(3, n_samples, 1 + i)
             plt.axis("off")

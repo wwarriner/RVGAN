@@ -4,9 +4,9 @@ from pathlib import Path, PurePath
 import numpy as np
 import yaml
 
-import preprocess
 import src.data
 import src.dataloader
+import src.image_util
 import src.model
 
 
@@ -16,15 +16,14 @@ def eval(
     image_chunks: np.ndarray,
     mask_chunks: np.ndarray,
 ) -> np.ndarray:
-    coarse_shape_space = (
-        image_chunks.shape[1] // 2,
-        image_chunks.shape[2] // 2,
-    )  # TODO fix magic numbers
-    image_chunks_coarse = src.dataloader.resize_stack(
-        data=image_chunks, out_shape_space=coarse_shape_space
+    coarse_shape_space_px = src.image_util.downscale_shape_space_px(
+        in_shape_space_px=image_chunks.shape[1:3], factor=2  # TODO magic number
     )
-    mask_chunks_coarse = src.dataloader.resize_stack(
-        data=mask_chunks, out_shape_space=coarse_shape_space
+    image_chunks_coarse = src.image_util.resize_stack(
+        stack=image_chunks, out_shape_space_px=coarse_shape_space_px
+    )
+    mask_chunks_coarse = src.image_util.resize_stack(
+        stack=mask_chunks, out_shape_space_px=coarse_shape_space_px
     )
 
     # GLOBAL IS FINE
@@ -89,16 +88,16 @@ if __name__ == "__main__":
     for image_file, mask_file in zip(image_files, mask_files):
         print(str(image_file))
 
-        image = src.data.load_image(image_file)
-        image = src.dataloader.intensity_to_input(image)
+        image = src.image_util.load_image(path=image_file)
+        image = src.image_util.intensity_to_input(image=image)
 
-        mask = src.data.load_image(mask_file)
-        mask = src.dataloader.binary_to_input(mask)
+        mask = src.image_util.load_image(path=mask_file)
+        mask = src.image_util.binary_to_input(image=mask)
 
-        image_chunks = preprocess.image_to_chunks(
+        image_chunks = src.image_util.image_to_chunks(
             image, chunk_shape_px=input_shape_px, stride_px=input_shape_px
         )
-        mask_chunks = preprocess.image_to_chunks(
+        mask_chunks = src.image_util.image_to_chunks(
             mask, chunk_shape_px=input_shape_px, stride_px=input_shape_px
         )
 
@@ -109,13 +108,13 @@ if __name__ == "__main__":
             mask_chunks=mask_chunks,
         )
 
-        image_shape_space_px = preprocess.get_shape_space_px(image=image)
-        label = preprocess.chunks_to_image(
+        image_shape_space_px = src.image_util.get_shape_space_px(image=image)
+        label = src.image_util.chunks_to_image(
             chunks=label_chunks,
             image_shape_space_px=image_shape_space_px,
             stride_px=input_shape_px,
         )
-        label = src.dataloader.output_to_binary(image=label, threshold=0.5)
+        label = src.image_util.output_to_binary(image=label, threshold=0.5)
 
         label_file = label_folder / (image_file.stem + ".png")
-        src.data.save_image(image=label, path=label_file)
+        src.image_util.save_image(path=label_file, image=label)
