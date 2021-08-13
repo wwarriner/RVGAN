@@ -115,18 +115,10 @@ class Dataset:
         return [batch_XA_fr, batch_XB_fr, batch_XC_fr], [y1_fr, y2_fr]
 
     def _generate_cr(self, XA_fr, XB_fr, XC_fr):
-        out_shape_space_px = src.image_util.downscale_shape_space_px(
-            in_shape_space_px=XA_fr.shape[1:3], factor=self._downscale_factor
-        )
-        XA_fr = src.image_util.resize_stack(
-            stack=XA_fr, out_shape_space_px=out_shape_space_px
-        )
-        XB_fr = src.image_util.resize_stack(
-            stack=XB_fr, out_shape_space_px=out_shape_space_px
-        )
-        XC_fr = src.image_util.resize_stack(
-            stack=XC_fr, out_shape_space_px=out_shape_space_px
-        )
+        factors = (self._downscale_factor, self._downscale_factor)
+        XA_fr = src.image_util.downscale_stack(stack=XA_fr, factors=factors)
+        XB_fr = src.image_util.downscale_stack(stack=XB_fr, factors=factors)
+        XC_fr = src.image_util.downscale_stack(stack=XC_fr, factors=factors)
         return [XA_fr, XB_fr, XC_fr]
 
     def _generate_cx(self, XA_cr, XB_cr):

@@ -2,7 +2,7 @@ import itertools
 from pathlib import Path, PurePath
 from typing import List, Sequence, Union
 
-import cv2
+import skimage.transform
 import numpy as np
 from PIL import Image
 
@@ -65,14 +65,14 @@ def downscale_shape_space_px(
     return out_shape_space_px
 
 
-def resize_stack(stack: np.ndarray, out_shape_space_px: Sequence[int]) -> np.ndarray:
+def downscale_stack(stack: np.ndarray, factors: Sequence[int]) -> np.ndarray:
     """
-    Uniformly resizes a stack of images to a desired shape.
+    Downscales a stack of images by an integer factor.
 
     Args:
     1. stack (np.ndarray): image stack whose dimensions are index, space,
        channels
-    2. out_shape_space_px (Sequence[int]): spatial shape of output, 2 elements
+    2. factors (sequence of int): one factor per axis in a sequence
 
     Returns:
     1. (np.ndarray): resized stack
@@ -80,14 +80,26 @@ def resize_stack(stack: np.ndarray, out_shape_space_px: Sequence[int]) -> np.nda
     out = []
     for index in range(len(stack)):
         image = stack[index, ...].copy()
-        image = resize(image=image, out_shape_space_px=out_shape_space_px)
+        image = downscale(image=image, factors=factors)
         out.append(image)
     out = np.stack(out, axis=0)
     return out  # type: ignore
 
 
-def resize(image: np.ndarray, out_shape_space_px: Sequence[int]) -> np.ndarray:
-    out = cv2.resize(image, dsize=out_shape_space_px, interpolation=cv2.INTER_LANCZOS4)
+def downscale(image: np.ndarray, factors: Sequence[int]) -> np.ndarray:
+    out = []
+    for channel in range(image.shape[-1]):
+        c = skimage.transform.downscale_local_mean(
+            image=image[..., channel], factors=factors
+        )
+        out.append(c)
+    out = np.stack(out, axis=-1)
+    if out.ndim == image.ndim:
+        pass
+    elif out.ndim + 1 == image.ndim:
+        out = out[..., np.newaxis]
+    else:
+        assert False
     return out
 
 
