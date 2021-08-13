@@ -2,7 +2,7 @@ import itertools
 from pathlib import Path, PurePath
 from typing import List, Sequence, Union
 
-import cv2
+import skimage.transform
 import numpy as np
 from PIL import Image
 
@@ -65,14 +65,14 @@ def downscale_shape_space_px(
     return out_shape_space_px
 
 
-def resize_stack(stack: np.ndarray, out_shape_space_px: Sequence[int]) -> np.ndarray:
+def downscale_stack(stack: np.ndarray, factors: Sequence[int]) -> np.ndarray:
     """
-    Uniformly resizes a stack of images to a desired shape.
+    Downscales a stack of images by an integer factor.
 
     Args:
     1. stack (np.ndarray): image stack whose dimensions are index, space,
        channels
-    2. out_shape_space_px (Sequence[int]): spatial shape of output, 2 elements
+    2. factors (sequence of int): one factor per axis in a sequence
 
     Returns:
     1. (np.ndarray): resized stack
@@ -80,14 +80,26 @@ def resize_stack(stack: np.ndarray, out_shape_space_px: Sequence[int]) -> np.nda
     out = []
     for index in range(len(stack)):
         image = stack[index, ...].copy()
-        image = resize(image=image, out_shape_space_px=out_shape_space_px)
+        image = downscale(image=image, factors=factors)
         out.append(image)
     out = np.stack(out, axis=0)
     return out  # type: ignore
 
 
-def resize(image: np.ndarray, out_shape_space_px: Sequence[int]) -> np.ndarray:
-    out = cv2.resize(image, dsize=out_shape_space_px, interpolation=cv2.INTER_LANCZOS4)
+def downscale(image: np.ndarray, factors: Sequence[int]) -> np.ndarray:
+    out = []
+    for channel in range(image.shape[-1]):
+        c = skimage.transform.downscale_local_mean(
+            image=image[..., channel], factors=factors
+        )
+        out.append(c)
+    out = np.stack(out, axis=-1)
+    if out.ndim == image.ndim:
+        pass
+    elif out.ndim + 1 == image.ndim:
+        out = out[..., np.newaxis]
+    else:
+        assert False
     return out
 
 
@@ -171,7 +183,7 @@ def chunks_to_image(
         sub = (*slices_px, Ellipsis)
         padded_image[sub] = chunk.copy()
 
-    out_slices = [slice(stop=x) for x in image_shape]  # type: ignore
+    out_slices = [slice(0, x) for x in image_shape_full_px]  # type: ignore
     image = padded_image[out_slices]
     return image
 
@@ -205,7 +217,7 @@ def _compute_chunk_slices_px(
     for start, end in zip(chunk_starts_px, chunk_ends_px):
         chunk_slices = []
         for s_x, e_x in zip(start, end):
-            chunk_slices.append(slice(start=s_x, stop=e_x))
+            chunk_slices.append(slice(s_x, e_x))
         slices_px.append(chunk_slices)
     return slices_px
 
@@ -221,7 +233,7 @@ def _pad_image(
     )
     image_shape_channels_px = get_shape_channels_px(image=image)
     padded_shape_full_px = (*padded_shape_space_px, *image_shape_channels_px)  # type: ignore
-    padded_image = _pad_to_shape_space(a=image, shape=tuple(padded_shape_full_px))  # type: ignore
+    padded_image = _pad_to_shape_space(a=image, shape_full_px=tuple(padded_shape_full_px))  # type: ignore
     return padded_image
 
 
