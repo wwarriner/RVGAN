@@ -81,7 +81,7 @@ class Dataset:
     def get_batch_data(self, batch_index: int) -> dict:
         start = batch_index * self._images_per_batch
         end = start + self._images_per_batch
-        indices = list(range(start=start, stop=end))
+        indices = self._indices[slice(start, end)]
         generate_fr_func = lambda: self._generate_fr(indices=indices)
         out = self._cycle(generate_fr_func=generate_fr_func)
         return out
