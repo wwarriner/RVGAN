@@ -1,6 +1,6 @@
 import argparse
 from pathlib import Path, PurePath
-from typing import Dict, List
+from typing import Dict
 
 import numpy as np
 
@@ -13,9 +13,6 @@ import src.model
 def _batch_update(
     dataset: src.data.Dataset,
     batch_index: int,
-    images_per_batch: int,
-    patch_counts: List[int],
-    downscale_factor: int,
     d_f: src.data.ModelFile,
     d_c: src.data.ModelFile,
     g_c: src.data.ModelFile,
@@ -109,7 +106,7 @@ def _batch_update(
 
 
 def train(
-    dataset,
+    dataset: src.data.Dataset,
     d_f: src.data.ModelFile,
     d_c: src.data.ModelFile,
     g_c: src.data.ModelFile,
@@ -118,23 +115,15 @@ def train(
     statistics: src.data.Statistics,
     visualizations: src.data.Visualizations,
     epoch_count: int,
-    images_per_batch: int,
-    patch_counts: List[int],
 ):
-    X_A, _, _ = dataset
-    batches_per_epoch = int(len(X_A) / images_per_batch)
     start_epoch = statistics.latest_epoch
     statistics.start_timer()
 
     for epoch in range(start_epoch, epoch_count):
-        # TODO shuffle
-        for batch in range(batches_per_epoch):
+        for batch in range(dataset.batch_count):
             batch_losses = _batch_update(
                 dataset=dataset,
                 batch_index=batch,
-                images_per_batch=images_per_batch,
-                patch_counts=patch_counts,
-                downscale_factor=downscale_factor,
                 d_f=d_f,
                 d_c=d_c,
                 g_c=g_c,
@@ -258,7 +247,5 @@ if __name__ == "__main__":
         statistics=statistics,
         visualizations=visualizations,
         epoch_count=epoch_count,
-        images_per_batch=images_per_batch,
-        patch_counts=patch_counts,
     )
     print("Training complete")
