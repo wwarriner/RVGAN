@@ -24,15 +24,7 @@ def _batch_update(
 ) -> Dict[str, float]:
     batch_losses = {}
 
-    # d_ = discriminator
-    # g_ = generator
-    # _c = coarse
-    # _f = fine
-
-    # _fr = fine real
-    # _cr = coarse real
-    # _fx = fine fake
-    # _cx = coarse fake
+    # See "data.py" docs and readme for Hungarian notation meaning
 
     # ASSEMBLE DATA
     d_f.model.trainable = False
@@ -205,29 +197,25 @@ if __name__ == "__main__":
     )
 
     d_f_arch = arch_factory.build_discriminator(scale_type="fine", name="D1")
-    d_f = src.data.ModelFile(
-        name="discriminator_1", folder=output_folder, arch=d_f_arch
-    )
+    d_f = src.data.ModelFile(name="d_f", folder=output_folder, arch=d_f_arch)
 
     d_c_arch = arch_factory.build_discriminator(scale_type="coarse", name="D2")
-    d_c = src.data.ModelFile(
-        name="discriminator_2", folder=output_folder, arch=d_c_arch
-    )
+    d_c = src.data.ModelFile(name="d_c", folder=output_folder, arch=d_c_arch)
 
     g_f_arch = arch_factory.build_generator(scale_type="fine")
-    g_f = src.data.ModelFile(name="fine_model", folder=output_folder, arch=g_f_arch)
+    g_f = src.data.ModelFile(name="g_f", folder=output_folder, arch=g_f_arch)
 
     g_c_arch = arch_factory.build_generator(scale_type="coarse")
-    g_c = src.data.ModelFile(name="coarse_model", folder=output_folder, arch=g_c_arch)
+    g_c = src.data.ModelFile(name="g_c", folder=output_folder, arch=g_c_arch)
 
-    rvgan_model = arch_factory.build_gan(
+    gan_arch = arch_factory.build_gan(
         d_coarse=d_c_arch,
         d_fine=d_f_arch,
         g_coarse=g_c_arch,
         g_fine=g_f_arch,
         inner_weight=inner_weight,
     )
-    gan = src.data.ModelFile(name="rvgan_model", folder=output_folder, arch=rvgan_model)
+    gan = src.data.ModelFile(name="gan", folder=output_folder, arch=gan_arch)
 
     [XA_fr, XB_fr, XC_fr] = src.data.load_npz_data(path=input_npz_file)
     print("Loaded", XA_fr.shape, XB_fr.shape)
