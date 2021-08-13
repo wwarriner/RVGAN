@@ -188,7 +188,6 @@ if __name__ == "__main__":
     inner_weight = config["arch"]["inner_weight"]
     epoch_count = config["train"]["epochs"]
     images_per_batch = config["train"]["batch_size"]
-    patch_counts = config["train"]["patch_counts"]
 
     print("building model")
     arch_factory = src.model.ArchFactory(
