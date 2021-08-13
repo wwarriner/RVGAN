@@ -13,9 +13,11 @@ IMAGE_TYPES = ["image", "mask", "label"]
 
 def _read_file_info(input_folder: PurePath, extension: str) -> dict:
     file_info = {}
+    pattern = "*" + extension
     for image_type in IMAGE_TYPES:
-        files = list(Path(input_folder / image_type).glob(extension))
-        files = sorted(files)
+        folder = input_folder / image_type
+        files = src.file_util.glob(folder=folder, pattern=pattern)
+        print(f"found {len(files)} in {image_type}")
         file_info[image_type] = {"files": files, "out": output_folder}
     return file_info
 

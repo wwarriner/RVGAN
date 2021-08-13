@@ -77,11 +77,12 @@ if __name__ == "__main__":
 
     # LOAD AND PROCESS IMAGES
     print("evaluating...")
-    image_files = Path(input_folder / "image").glob(pattern="*" + image_extension)
-    image_files = sorted(list(image_files))
-
-    mask_files = Path(input_folder / "mask").glob(pattern="*" + mask_extension)
-    mask_files = sorted(list(mask_files))
+    image_files = src.file_util.glob(
+        folder=input_folder / "image", pattern="*" + image_extension
+    )
+    mask_files = src.file_util.glob(
+        folder=input_folder / "mask", pattern="*" + mask_extension
+    )
 
     for image_file, mask_file in zip(image_files, mask_files):
         print(str(image_file))
