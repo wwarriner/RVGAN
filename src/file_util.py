@@ -1,9 +1,16 @@
 from pathlib import Path, PurePath
-from typing import Any, Union
+from typing import Any, List, Union
 
 import yaml
 
 PathLike = Union[Path, PurePath, str]
+
+
+def glob(folder: PurePath, pattern: str) -> List[PurePath]:
+    files = Path(folder).glob(pattern=pattern)
+    files = sorted(list(files))
+    files = [PurePath(f) for f in files]
+    return files
 
 
 def read_yaml(path: PathLike) -> Any:
