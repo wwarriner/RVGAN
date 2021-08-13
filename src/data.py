@@ -39,11 +39,11 @@ class Dataset:
         g_f_arch: keras.models.Model,
         g_c_arch: keras.models.Model,
     ):
-        image_shape_px_f = np.ndarray(XA_fr.shape[1:3])
+        image_shape_px_f = np.array(XA_fr.shape[1:3])
         image_shape_px_c = src.image_util.downscale_shape_space_px(
             in_shape_space_px=image_shape_px_f, factor=downscale_factor  # type: ignore
         )
-        image_shape_px_c = np.ndarray(image_shape_px_c)
+        image_shape_px_c = np.array(image_shape_px_c)
 
         self._XA_fr = XA_fr
         self._XB_fr = XB_fr

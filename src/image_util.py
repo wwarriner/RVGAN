@@ -171,7 +171,7 @@ def chunks_to_image(
         sub = (*slices_px, Ellipsis)
         padded_image[sub] = chunk.copy()
 
-    out_slices = [slice(stop=x) for x in image_shape]  # type: ignore
+    out_slices = [slice(0, x) for x in image_shape_full_px]  # type: ignore
     image = padded_image[out_slices]
     return image
 
@@ -205,7 +205,7 @@ def _compute_chunk_slices_px(
     for start, end in zip(chunk_starts_px, chunk_ends_px):
         chunk_slices = []
         for s_x, e_x in zip(start, end):
-            chunk_slices.append(slice(start=s_x, stop=e_x))
+            chunk_slices.append(slice(s_x, e_x))
         slices_px.append(chunk_slices)
     return slices_px
 
@@ -221,7 +221,7 @@ def _pad_image(
     )
     image_shape_channels_px = get_shape_channels_px(image=image)
     padded_shape_full_px = (*padded_shape_space_px, *image_shape_channels_px)  # type: ignore
-    padded_image = _pad_to_shape_space(a=image, shape=tuple(padded_shape_full_px))  # type: ignore
+    padded_image = _pad_to_shape_space(a=image, shape_full_px=tuple(padded_shape_full_px))  # type: ignore
     return padded_image
 
 
