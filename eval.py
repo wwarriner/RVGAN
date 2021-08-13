@@ -1,5 +1,6 @@
 import argparse
 from pathlib import Path, PurePath
+from typing import Dict
 
 import numpy as np
 
@@ -68,11 +69,11 @@ if __name__ == "__main__":
     )
 
     g_c_arch = arch_factory.build_generator(scale_type="coarse")
-    g_c = src.data.ModelFile(name="coarse_model", folder=model_folder, arch=g_c_arch)
+    g_c = src.data.ModelFile(name="g_c", folder=model_folder, arch=g_c_arch)
     g_c.load(version="latest")
 
     g_f_arch = arch_factory.build_generator(scale_type="fine")
-    g_f = src.data.ModelFile(name="fine_model", folder=model_folder, arch=g_f_arch)
+    g_f = src.data.ModelFile(name="g_f", folder=model_folder, arch=g_f_arch)
     g_f.load(version="latest")
 
     # LOAD AND PROCESS IMAGES
