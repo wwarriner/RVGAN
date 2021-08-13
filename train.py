@@ -150,6 +150,9 @@ def train(
         g_f.save(version=VERSION)
         gan.save(version=VERSION)
 
+        VERSION = f"eval_{epoch}"
+        g_c.save(version=VERSION)
+        g_f.save(version=VERSION)
 
     print(f"training complete")
 
