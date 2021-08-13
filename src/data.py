@@ -113,6 +113,7 @@ class Dataset:
         return out
 
     def _generate_fr(self, indices: List[int]):
+        # indices = np.array(indices, dtype=np.int64)
         batch_XA_fr = self._XA_fr[indices, ...]
         batch_XB_fr = self._XB_fr[indices, ...]
         batch_XC_fr = self._XC_fr[indices, ...]
@@ -226,7 +227,6 @@ class Visualizations:
         """
 
         # EXTRACT DATA
-        PATCH_COUNTS = [1, 1]
         self._g_c.model.trainable = False
         self._g_f.model.trainable = False
         data = self._dataset.get_random_sample_data(sample_count=self._sample_count)
