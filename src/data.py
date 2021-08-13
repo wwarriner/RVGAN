@@ -54,16 +54,23 @@ class Dataset:
         self._image_shape_px_c = image_shape_px_c
         self._g_f_arch = g_f_arch
         self._g_c_arch = g_c_arch
+        self._rng: np.random.Generator = np.random.default_rng()
+        self._indices = list(range(0, self._XA_fr.shape[0]))
 
     @property
     def image_count(self) -> int:
         return self._XA_fr.shape[0]
 
+    @property
+    def images_per_batch(self) -> int:
+        return self._images_per_batch
+
+    @property
+    def batch_count(self) -> int:
+        return self.image_count // self.images_per_batch
+
     def shuffle(self) -> None:
-        indices = self._shuffled_indices
-        self._XA_fr = self._XA_fr[indices, ...]
-        self._XB_fr = self._XB_fr[indices, ...]
-        self._XC_fr = self._XC_fr[indices, ...]
+        self._indices = self._shuffled_indices()
 
     def get_full_data(self) -> dict:
         indices = list(range(self.image_count))
@@ -80,7 +87,7 @@ class Dataset:
         return out
 
     def get_random_sample_data(self, sample_count: int) -> dict:
-        indices = np.random.randint(0, self.image_count, sample_count).tolist()
+        indices = self._rng.choice(self._indices, size=sample_count)
         generate_fr_func = lambda: self._generate_fr(indices=indices)
         out = self._cycle(generate_fr_func=generate_fr_func)
         return out
@@ -141,8 +148,8 @@ class Dataset:
         return y
 
     def _shuffled_indices(self) -> np.ndarray:
-        indices = np.arange(len(self._XA_fr))
-        indices = np.random.shuffle(indices)
+        indices = np.arange(start=0, stop=self.image_count)
+        indices = self._rng.choice(indices, size=indices.size, shuffle=True)
         return indices
 
 
