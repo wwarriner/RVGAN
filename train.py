@@ -173,7 +173,7 @@ if __name__ == "__main__":
     input_npz_file = PurePath(args.npz_file)
     assert src.file_util.check_file(input_npz_file)
 
-    output_folder = PurePath(args.savedir)
+    output_folder = PurePath(args.save_folder)
     Path(output_folder).mkdir(parents=True, exist_ok=True)
 
     config_file = PurePath(args.config_file)
