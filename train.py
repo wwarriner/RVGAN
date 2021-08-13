@@ -119,7 +119,11 @@ def train(
     start_epoch = statistics.latest_epoch
     statistics.start_timer()
 
+    print(f"starting at epoch {start_epoch} of {epoch_count}")
+    print(f"epochs have {dataset.batch_count} batches of {dataset.images_per_batch}")
+
     for epoch in range(start_epoch, epoch_count):
+        # BATCH LOOP
         for batch in range(dataset.batch_count):
             batch_losses = _batch_update(
                 dataset=dataset,
@@ -133,8 +137,12 @@ def train(
             statistics.append(epoch=epoch, batch=batch, data=batch_losses)
             print(statistics.latest_batch_to_string())
         print(statistics.latest_epoch_to_string())
+
+        # SAVE
+        print("saving epoch")
         statistics.save()
         visualizations.save_plot(epoch=epoch)
+
         VERSION = "latest"
         d_f.save(version=VERSION)
         d_c.save(version=VERSION)
@@ -143,7 +151,7 @@ def train(
         gan.save(version=VERSION)
 
 
-# TODO shuffle data each epoch
+    print(f"training complete")
 
 
 if __name__ == "__main__":
@@ -173,6 +181,7 @@ if __name__ == "__main__":
 
     resume_training = args.resume_training
 
+    print("loading config")
     config = src.file_util.read_yaml(path=config_file)
     input_shape_px = np.array(config["arch"]["input_size"])
     downscale_factor = config["arch"]["downscale_factor"]
@@ -181,22 +190,28 @@ if __name__ == "__main__":
     images_per_batch = config["train"]["batch_size"]
     patch_counts = config["train"]["patch_counts"]
 
+    print("building model")
     arch_factory = src.model.ArchFactory(
         input_shape_px=input_shape_px, downscale_factor=downscale_factor,
     )
 
+    print("  d_f")
     d_f_arch = arch_factory.build_discriminator(scale_type="fine", name="D1")
     d_f = src.data.ModelFile(name="d_f", folder=output_folder, arch=d_f_arch)
 
+    print("  d_c")
     d_c_arch = arch_factory.build_discriminator(scale_type="coarse", name="D2")
     d_c = src.data.ModelFile(name="d_c", folder=output_folder, arch=d_c_arch)
 
+    print("  g_f")
     g_f_arch = arch_factory.build_generator(scale_type="fine")
     g_f = src.data.ModelFile(name="g_f", folder=output_folder, arch=g_f_arch)
 
+    print("  g_c")
     g_c_arch = arch_factory.build_generator(scale_type="coarse")
     g_c = src.data.ModelFile(name="g_c", folder=output_folder, arch=g_c_arch)
 
+    print("  gan")
     gan_arch = arch_factory.build_gan(
         d_coarse=d_c_arch,
         d_fine=d_f_arch,
@@ -206,8 +221,8 @@ if __name__ == "__main__":
     )
     gan = src.data.ModelFile(name="gan", folder=output_folder, arch=gan_arch)
 
+    print("loading dataset")
     [XA_fr, XB_fr, XC_fr] = src.data.load_npz_data(path=input_npz_file)
-    print("Loaded", XA_fr.shape, XB_fr.shape)
     dataset = src.data.Dataset(
         XA_fr=XA_fr,
         XB_fr=XB_fr,
@@ -218,17 +233,21 @@ if __name__ == "__main__":
         g_c_arch=g_c.model,
     )
 
+    print("initializing statistics")
     statistics = src.data.Statistics(output_folder=output_folder)
+
+    print("initializing visualizations")
     visualizations = src.data.Visualizations(
         output_folder=output_folder,
         dataset=dataset,
         downscale_factor=downscale_factor,
-        sample_count=3,
+        sample_count=5,
         g_c=g_c,
         g_f=g_f,
     )
 
     if args.resume_training:
+        print("resuming training")
         VERSION = "latest"
         d_f.load(version=VERSION)
         d_c.load(version=VERSION)
@@ -236,6 +255,8 @@ if __name__ == "__main__":
         g_f.load(version=VERSION)
         gan.load(version=VERSION)
         statistics.load()
+    else:
+        print("starting training")
 
     train(
         dataset=dataset,
