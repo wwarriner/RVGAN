@@ -240,8 +240,8 @@ class Visualizations:
 
         # FINE
         XA_fr = src.image_util.output_to_intensity(XA_fr)
-        XC_fr = src.image_util.output_to_intensity(XC_fr)
         XC_fx = src.image_util.output_to_intensity(XC_fx)  # type: ignore
+        XC_fr = src.image_util.output_to_intensity(XC_fr)
         for i in range(self._sample_count):
             plt.subplot(3, self._sample_count, 1 + i)
             plt.axis("off")
