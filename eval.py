@@ -28,6 +28,9 @@ def eval(
         g_f_arch=g_f.model,
         g_c_arch=g_c.model,
     )
+
+    g_c.model.trainable = False
+    g_f.model.trainable = False
     data = dataset.get_full_data()
     out = data["XC_fx"]
     return out  # type: ignore
