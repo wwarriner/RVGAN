@@ -184,7 +184,7 @@ def chunks_to_image(
         padded_image[sub] = chunk.copy()
 
     out_slices = [slice(0, x) for x in image_shape_full_px]  # type: ignore
-    image = padded_image[out_slices]
+    image = padded_image[tuple(out_slices)]
     return image
 
 
