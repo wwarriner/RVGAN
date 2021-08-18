@@ -117,6 +117,8 @@ def train(
     epoch_count: int,
 ):
     start_epoch = statistics.latest_epoch
+    if 0 < start_epoch:
+        start_epoch += 1
     statistics.start_timer()
 
     print(f"starting at epoch {start_epoch} of {epoch_count}")
