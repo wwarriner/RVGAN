@@ -22,6 +22,6 @@ output="./eval/${name}"
 
 python -u eval.py \
     --config_file="${config}" \
-    --model_folder="${save}" \
+    --model_folder="${model}" \
     --input_folder="${input}" \
     --output_folder="${output}"

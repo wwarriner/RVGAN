@@ -369,7 +369,7 @@ class Statistics:
         data[self.EPOCH] = epoch
         data[self.BATCH] = batch
         data[self.ELAPSED] = elapsed
-        entry = {elapsed: data}
+        entry = {now: data}
         df = pd.DataFrame.from_dict(data=entry, orient="index")
         self._data = self._data.append(df)
 
@@ -399,5 +399,5 @@ class Statistics:
 
     def load(self) -> None:
         file_path = self._csv_path()
-        data = pd.read_csv(file_path)
+        data[self.ELAPSED] = pd.to_timedelta(data[self.ELAPSED])
         self._data = data
