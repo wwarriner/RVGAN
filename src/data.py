@@ -369,7 +369,7 @@ class Statistics:
         data[self.EPOCH] = epoch
         data[self.BATCH] = batch
         data[self.ELAPSED] = elapsed
-        entry = {elapsed: data}
+        entry = {now: data}
         df = pd.DataFrame.from_dict(data=entry, orient="index")
         self._data = self._data.append(df)
 
