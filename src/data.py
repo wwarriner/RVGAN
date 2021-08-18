@@ -399,5 +399,6 @@ class Statistics:
 
     def load(self) -> None:
         file_path = self._csv_path()
+        data = pd.read_csv(file_path, index_col=0)
         data[self.ELAPSED] = pd.to_timedelta(data[self.ELAPSED])
         self._data = data
