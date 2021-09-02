@@ -42,6 +42,7 @@ if __name__ == "__main__":
     parser.add_argument("--input_folder", type=str, required=True)
     parser.add_argument("--output_folder", type=str, required=True)
     parser.add_argument("--config_file", type=str, default="config.yaml")
+    parser.add_argument("--fov_scale_factor", type=float, default=1.0)
     parser.add_argument("--image_extension", type=str, default=".png")
     parser.add_argument("--mask_extension", type=str, default=".png")
     args = parser.parse_args()
@@ -57,6 +58,9 @@ if __name__ == "__main__":
 
     config_file = PurePath(args.config_file)
     assert src.file_util.check_file(config_file)
+
+    fov_scale_factor = args.fov_scale_factor
+    assert 0.0 < fov_scale_factor
 
     image_extension = src.file_util.fix_ext(args.image_extension)
     mask_extension = src.file_util.fix_ext(args.mask_extension)
@@ -92,12 +96,16 @@ if __name__ == "__main__":
         print(str(image_file))
 
         image = src.image_util.load_image(path=image_file)
+        image = src.image_util.rescale(image=image, factor=fov_scale_factor)
+        image = src.image_util.rescaled_to_intensity(image=image)
         image = src.image_util.intensity_to_input(image=image)
         image_chunks = src.image_util.image_to_chunks(
             image, chunk_shape_px=input_shape_px, stride_px=input_shape_px
         )
 
         mask = src.image_util.load_image(path=mask_file)
+        mask = src.image_util.rescale(image=mask, factor=fov_scale_factor)
+        mask = src.image_util.rescaled_to_binary(image=mask)
         mask = src.image_util.binary_to_input(image=mask)
         mask_chunks = src.image_util.image_to_chunks(
             mask, chunk_shape_px=input_shape_px, stride_px=input_shape_px
