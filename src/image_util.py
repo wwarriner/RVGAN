@@ -191,7 +191,7 @@ def chunks_to_image(
 def _compute_chunk_counts(
     image_shape_space_px: np.ndarray, stride_px: np.ndarray
 ) -> np.ndarray:
-    return image_shape_space_px // stride_px  # type: ignore
+    return np.ceil(image_shape_space_px / stride_px).astype(np.int64)  # type: ignore
 
 
 def _compute_chunk_slices_px(
