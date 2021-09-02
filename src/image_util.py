@@ -57,6 +57,20 @@ def output_to_binary(image: np.ndarray, threshold: float = 0.5) -> np.ndarray:
     return image
 
 
+def rescaled_to_intensity(image: np.ndarray) -> np.ndarray:
+    image = image.copy()
+    image = 255.0 * image
+    image = image.astype(dtype=np.uint8)
+    return image
+
+
+def rescaled_to_binary(image: np.ndarray, threshold: float = 0.5) -> np.ndarray:
+    image = image.copy()
+    image = image > threshold
+    image = image.astype(np.bool)
+    return image
+
+
 def downscale_shape_space_px(
     in_shape_space_px: Sequence[int], factor: int
 ) -> List[int]:
@@ -98,6 +112,21 @@ def downscale(image: np.ndarray, factors: Sequence[int]) -> np.ndarray:
         pass
     elif out.ndim + 1 == image.ndim:
         out = out[..., np.newaxis]
+    else:
+        assert False
+    return out
+
+
+def rescale(image: np.ndarray, factor: float) -> np.ndarray:
+    assert image.ndim == 3
+    if image.shape[-1] == 3:
+        out = skimage.transform.rescale(
+            image=image, scale=factor, multichannel=True, anti_aliasing=True
+        )
+    elif image.shape[-1] == 1:
+        out = skimage.transform.rescale(
+            image=image, scale=factor, order=0, multichannel=True
+        )
     else:
         assert False
     return out
