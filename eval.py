@@ -1,6 +1,5 @@
 import argparse
 from pathlib import Path, PurePath
-from typing import Dict
 
 import numpy as np
 
@@ -126,7 +125,6 @@ if __name__ == "__main__":
             stride_px=input_shape_px,
         )
         label = src.image_util.output_to_binary(image=label, threshold=0.5)
-
         Path(output_folder).mkdir(parents=True, exist_ok=True)
         label_file = output_folder / (image_file.stem + ".png")
         src.image_util.save_image(path=label_file, image=label)
