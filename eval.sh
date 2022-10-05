@@ -24,4 +24,7 @@ python -u eval.py \
     --config_file="${config}" \
     --model_folder="${model}" \
     --input_folder="${input}" \
-    --output_folder="${output}"
+    --output_folder="${output}" \
+    --fov_scale_factor=0.452073938 \
+    --image_extension=".TIF" \
+    --mask_extension=".TIF"
